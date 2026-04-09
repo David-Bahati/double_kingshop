@@ -1,5 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
+const API_BASE_URL = 'http://localhost:3001';
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -47,7 +46,8 @@ class ApiService {
   async login(credentials) {
     const data = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(credentials)    });
+      body: JSON.stringify(credentials)
+    });
     if (data.token) {
       this.setToken(data.token);
     }
@@ -96,7 +96,8 @@ class ApiService {
   }
 
   // Orders
-  async getOrders() {    return this.request('/orders');
+  async getOrders() {
+    return this.request('/orders');
   }
 
   async createOrder(orderData) {

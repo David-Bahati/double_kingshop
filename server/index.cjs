@@ -187,5 +187,9 @@ app.get('/api/expenses', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Erreur lecture dépenses" }); }
 });
 
+// Ajoute ceci juste avant 'const PORT = 3001;'
+app.get('/', (req, res) => {
+    res.json({ message: "L'API Double King Shop tourne sur le port 3001", status: "OK" });
+    });
 const PORT = 3001;
 app.listen(PORT, () => console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`));
