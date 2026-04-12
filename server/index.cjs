@@ -124,6 +124,17 @@ app.get('/api/orders', async (req, res) => {
 });
 
 // --- PAIEMENT PI ---
+app.post('/api/pi/approve', async (req, res) => {
+  const { paymentId } = req.body;
+  try {
+    await axios.post(`${PI_API_BASE}/payments/${paymentId}/approve`, {}, { headers: PI_HEADERS });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur approbation Pi:', error);
+    res.status(500).json({ error: 'Erreur approbation Pi' });
+  }
+});
+
 app.post('/api/pi/complete', async (req, res) => {
   const { paymentId, txid, cartItems } = req.body;
   try {
@@ -192,4 +203,8 @@ app.get('/', (req, res) => {
     res.json({ message: "L'API Double King Shop tourne sur le port 3001", status: "OK" });
     });
 const PORT = 3001;
-app.listen(PORT, () => console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`);
+          // ... le reste du code
+          });
+

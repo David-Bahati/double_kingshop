@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiService from '../services/api'; // Utilise ton service API
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const [pin, setPin] = useState(''); // On passe de l'email au PIN
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -15,22 +16,11 @@ const Login = () => {
 
     try {
       // Appel à la route /api/auth/login qu'on a ajoutée au backend
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      });
+      const data = await login(pin);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // IMPORTANT : On stocke l'utilisateur pour le Dashboard
-        localStorage.setItem('dks_user', JSON.stringify(data.user));
-        
+      if (data.success) {
         // Redirection unique vers le Dashboard (qui s'adaptera selon le rôle)
         navigate('/admin/dashboard');
-      } else {
-        setError(data.error || 'Code PIN invalide');
       }
     } catch (err) {
       setError('Impossible de joindre le serveur DKS');

@@ -7,6 +7,9 @@ import CashRegister from '../../components/POS/CashRegister';
 // --- NOUVEAU : IMPORT DU JOURNAL DES DÉPENSES ---
 import ExpenseJournal from '../../components/Finance/ExpenseJournal';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001/api';
+const API_SERVER_URL = API_BASE_URL.replace(/\/api$/, '') || 'http://localhost:3001';
+
 // --- COMPOSANT MODAL : AJOUT AVEC PHOTO ---
 const AddProductModal = ({ isOpen, onClose, onAdd }) => {
   const [formData, setFormData] = useState({
@@ -206,7 +209,7 @@ const AdminDashboard = () => {
 
   const handleAddProduct = async (formData) => {
     try {
-      const response = await fetch('http://localhost:3001/api/products', {
+      const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'POST',
         body: formData,
       });
@@ -365,7 +368,7 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 gap-4">
               {products.map(product => (
                 <div key={product.id} className="flex gap-4 items-center p-3 bg-gray-50 rounded-2xl border border-transparent hover:border-blue-200 transition-all">
-                  <img src={`http://localhost:3001${product.image}`} alt={product.name} className="w-12 h-12 rounded-xl object-cover" />
+                  <img src={`${API_SERVER_URL}${product.image}`} alt={product.name} className="w-12 h-12 rounded-xl object-cover" />
                   <div className="flex-1">
                     <p className="text-xs font-bold text-gray-800">{product.name}</p>
                     <p className="text-[10px] text-blue-600 font-black">{product.price} $</p>

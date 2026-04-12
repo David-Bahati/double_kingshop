@@ -47,7 +47,7 @@ class PiService {
         // 1. Étape d'approbation : Ton serveur dit "OK" à Pi Network
         onReadyForServerApproval: async (paymentId) => {
           console.log("Approbation DKS en cours...", paymentId);
-          await apiService.request('/pi/approve', {
+          await apiService.request('/api/pi/approve', {
             method: 'POST',
             body: JSON.stringify({ paymentId })
           });
@@ -58,7 +58,7 @@ class PiService {
           console.log("Validation de la vente DKS...", paymentId);
           
           // CRUCIAL : On envoie cartItems pour que le serveur déduise le stock
-          await apiService.request('/pi/complete', {
+          await apiService.request('/api/pi/complete', {
             method: 'POST',
             body: JSON.stringify({ 
               paymentId, 

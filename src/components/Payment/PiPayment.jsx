@@ -7,7 +7,7 @@ const PiPayment = ({ onSuccess, onError }) => {
   const [loading, setLoading] = useState(false);
   const [piReady, setPiReady] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null);
-  const { getCartTotal, clearCart } = useCart();
+  const { getCartTotal, clearCart, cartItems } = useCart();
 
   useEffect(() => {
     const init = async () => {
@@ -37,10 +37,7 @@ const PiPayment = ({ onSuccess, onError }) => {
       await piService.createPayment(
         amountInPi.toFixed(4), 
         `Commande Double King Shop #${Date.now()}`,
-        { 
-          order_id: `DKS-${Date.now()}`,
-          usd_amount: totalAmount.toFixed(2)
-        }
+        cartItems
       );
 
       // Si le flux se termine sans erreur :

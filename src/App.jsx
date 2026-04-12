@@ -5,6 +5,7 @@ import { CartProvider } from './context/CartContext';
 
 // Pages
 import Login from './pages/Login';
+import Home from './pages/Home';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
 
 // --- COMPOSANT DE PROTECTION DES ROUTES ---
@@ -34,6 +35,7 @@ function App() {
           <div className="min-h-screen bg-gray-50">
             <Routes>
               {/* Route Publique */}
+              <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
 
               {/* DASHBOARD CENTRALISÉ (DKS STAFF) */}
@@ -47,9 +49,6 @@ function App() {
                 }
               />
 
-              {/* Redirection par défaut : On envoie vers le login */}
-              <Route path="/" element={<Navigate to="/login" replace />} />
-              
               {/* Gestion de l'erreur 404 */}
               <Route path="*" element={
                 <div className="flex items-center justify-center min-h-screen font-bold text-gray-400 uppercase tracking-widest">

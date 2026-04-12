@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { ROLES } from '../utils/constants';
+import apiService from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -33,22 +33,15 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
       
-      const response = await fetch('http://localhost:3001/api/auth/login', {
+      const data = await apiService.request('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin })
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setUser(data.user);
-        // On utilise 'dks_user' pour être cohérent avec ton Dashboard
-        localStorage.setItem('dks_user', JSON.stringify(data.user));
-        return data;
-      } else {
-        throw new Error(data.error || 'Code PIN incorrect');
-      }
+      setUser(data.user);
+      // On utilise 'dks_user' pour être cohérent avec ton Dashboard
+      localStorage.setItem('dks_user', JSON.stringify(data.user));
+      return data;
     } catch (err) {
       setError(err.message);
       throw err;
