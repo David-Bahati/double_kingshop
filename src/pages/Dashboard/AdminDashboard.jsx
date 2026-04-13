@@ -5,7 +5,7 @@ import Sidebar from '../../components/Layout/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import CashRegister from '../../components/POS/CashRegister';
 // --- NOUVEAU : IMPORT DU JOURNAL DES DÉPENSES ---
-import ExpenseJournal from '../../components/Finance/ExpenseJournal';
+import { useNotification } from '../../context/NotificationContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001/api';
 const API_SERVER_URL = API_BASE_URL.replace(/\/api$/, '') || 'http://localhost:3001';
@@ -97,29 +97,67 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalProducts: 0, totalOrders: 0, totalRevenue: 0, totalExpenses: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [taxes, setTaxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showPOS, setShowPOS] = useState(false);
   // --- NOUVEAU : ÉTAT POUR LES DÉPENSES ---
   const [showExpenses, setShowExpenses] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+  const [showTaxes, setShowTaxes] = useState(false);
   
   const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('dks_user')) || { role: 'vendeur' });
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   useEffect(() => { fetchDashboardData(); }, []);
 
+  // Vérification périodique des nouvelles commandes
+  useEffect(() => {
+    const checkNewOrders = async () => {
+      try {
+        const newOrders = await apiService.request('/orders');
+        const newOrderCount = newOrders.length;
+        const previousCount = localStorage.getItem('dks-order-count') || 0;
+        
+        if (newOrderCount > previousCount && previousCount > 0) {
+          const newOrdersCount = newOrderCount - previousCount;
+          addNotification(
+            `🆕 ${newOrdersCount} nouvelle${newOrdersCount > 1 ? 's' : ''} commande${newOrdersCount > 1 ? 's' : ''} reçue${newOrdersCount > 1 ? 's' : ''}!`,
+            'success'
+          );
+        }
+        
+        localStorage.setItem('dks-order-count', newOrderCount);
+      } catch (error) {
+        console.error('Error checking new orders:', error);
+      }
+    };
+
+    // Vérifier toutes les 30 secondes
+    const interval = setInterval(checkNewOrders, 30000);
+    checkNewOrders(); // Vérifier immédiatement
+
+    return () => clearInterval(interval);
+  }, [addNotification]);
+
   const fetchDashboardData = async () => {
     try {
-      const [prods, orders, expensesData] = await Promise.all([
+      const [prods, orders, expensesData, usersData, taxesData] = await Promise.all([
         apiService.request('/products') || [], 
         apiService.request('/orders') || [], 
-        apiService.request('/expenses') || []
+        apiService.request('/expenses') || [],
+        apiService.request('/users') || [],
+        apiService.request('/taxes') || []
       ]);
       
       const rev = orders.reduce((sum, order) => sum + (order.total || 0), 0);
       const exp = expensesData.reduce((sum, e) => sum + (e.amount || 0), 0);
 
       setProducts(prods);
+      setUsers(usersData);
+      setTaxes(taxesData);
       setStats({
         totalProducts: prods.length,
         totalOrders: orders.length,
@@ -209,17 +247,80 @@ const AdminDashboard = () => {
 
   const handleAddProduct = async (formData) => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'POST',
         body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (response.ok) {
         const savedProduct = await response.json();
         setProducts([savedProduct, ...products]);
         setStats(prev => ({ ...prev, totalProducts: prev.totalProducts + 1 }));
+      } else {
+        const error = await response.json();
+        alert(`Erreur: ${error.message}`);
       }
     } catch (error) {
       alert("Erreur lors de l'upload de l'image.");
+    }
+  };
+
+  const handleAddUser = async (userData) => {
+    try {
+      await apiService.request('/users', { method: 'POST', body: JSON.stringify(userData) });
+      fetchDashboardData();
+    } catch (error) {
+      alert("Erreur ajout utilisateur");
+    }
+  };
+
+  const handleUpdateUser = async (id, userData) => {
+    try {
+      await apiService.request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(userData) });
+      fetchDashboardData();
+    } catch (error) {
+      alert("Erreur modification utilisateur");
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (confirm("Supprimer cet utilisateur ?")) {
+      try {
+        await apiService.request(`/users/${id}`, { method: 'DELETE' });
+        fetchDashboardData();
+      } catch (error) {
+        alert("Erreur suppression utilisateur");
+      }
+    }
+  };
+
+  const handleAddTax = async (taxData) => {
+    try {
+      await apiService.request('/taxes', { method: 'POST', body: JSON.stringify(taxData) });
+      fetchDashboardData();
+    } catch (error) {
+      alert("Erreur ajout taxe");
+    }
+  };
+
+  const handleUpdateTax = async (id, taxData) => {
+    try {
+      await apiService.request(`/taxes/${id}`, { method: 'PUT', body: JSON.stringify(taxData) });
+      fetchDashboardData();
+    } catch (error) {
+      alert("Erreur modification taxe");
+    }
+  };
+
+  const handleDeleteTax = async (id) => {
+    if (confirm("Supprimer cette taxe ?")) {
+      try {
+        await apiService.request(`/taxes/${id}`, { method: 'DELETE' });
+        fetchDashboardData();
+      } catch (error) {
+        alert("Erreur suppression taxe");
+      }
     }
   };
 
@@ -252,7 +353,7 @@ const AdminDashboard = () => {
 
             {currentUser.role === 'administrator' && (
               <button 
-                onClick={() => {setShowExpenses(!showExpenses); setShowPOS(false)}} 
+                onClick={() => {setShowExpenses(!showExpenses); setShowPOS(false); setShowUsers(false); setShowTaxes(false)}} 
                 className="bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
               >
                 {showExpenses ? "Fermer" : "💸 Dépenses"}
@@ -260,10 +361,95 @@ const AdminDashboard = () => {
             )}
 
             {currentUser.role === 'administrator' && (
-              <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]">
-                + Matériel
+              <button 
+                onClick={() => {setShowUsers(!showUsers); setShowPOS(false); setShowExpenses(false); setShowTaxes(false)}} 
+                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
+              >
+                {showUsers ? "Fermer Utilisateurs" : "👥 Utilisateurs"}
               </button>
             )}
+
+            {currentUser.role === 'administrator' && (
+              <button 
+                onClick={() => {setShowTaxes(!showTaxes); setShowPOS(false); setShowExpenses(false); setShowUsers(false)}} 
+                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
+              >
+                {showTaxes ? "Fermer Taxes" : "💸 Taxes"}
+              </button>
+            )}
+
+            {currentUser.role === 'administrator' && (
+              <button 
+                onClick={() => {
+                  // Export des données en CSV
+                  const csvContent = [
+                    ['ID', 'Nom', 'Prix', 'Stock', 'Catégorie', 'Description', 'Date création'],
+                    ...products.map(p => [p.id, p.name, p.price, p.stock, p.category, p.description, p.createdAt])
+                  ].map(row => row.join(',')).join('\n');
+                  
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `dks-products-${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
+              >
+                📊 Export Produits
+              </button>
+            )}
+
+            {currentUser.role === 'administrator' && (
+              <button 
+                onClick={() => {
+                  // Export des commandes en CSV
+                  const csvContent = [
+                    ['ID', 'Client', 'Total', 'Articles', 'Statut', 'Transaction', 'Date'],
+                    ...recentOrders.map(o => [
+                      o.id, 
+                      o.customerName, 
+                      o.total, 
+                      o.items ? o.items.join('; ') : '', 
+                      o.status, 
+                      o.txid, 
+                      o.createdAt
+                    ])
+                  ].map(row => row.join(',')).join('\n');
+                  
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `dks-orders-${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
+              >
+                📈 Export Commandes
+              </button>
+            )}
+
+            {currentUser.role === 'administrator' && (
+              <button 
+                onClick={async () => {
+                  try {
+                    const response = await apiService.request('/backup');
+                    if (response.success) {
+                      addNotification(`💾 Sauvegarde créée: ${response.backupFile}`, 'success');
+                    }
+                  } catch (error) {
+                    addNotification('❌ Erreur lors de la sauvegarde', 'error');
+                  }
+                }}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 uppercase text-[10px]"
+              >
+                💾 Backup DB
+              </button>
+            )}
+
             <button onClick={handleLogout} className="bg-white text-red-500 border border-red-100 px-6 py-4 rounded-2xl font-black hover:bg-red-50 transition-all uppercase text-[10px] shadow-sm">
                 Sortir
             </button>
@@ -280,6 +466,95 @@ const AdminDashboard = () => {
         {showExpenses && (
           <div className="mb-10 animate-fadeIn">
             <ExpenseJournal onUpdate={fetchDashboardData} />
+          </div>
+        )}
+
+        {showUsers && (
+          <div className="mb-10 animate-fadeIn bg-white rounded-3xl shadow-sm border p-6">
+            <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Gestion des Utilisateurs</h2>
+            <div className="mb-4">
+              <button onClick={() => {
+                const name = prompt("Nom de l'utilisateur:");
+                const role = prompt("Rôle (administrator/vendeur/caissier):");
+                const pin = prompt("Code PIN:");
+                const location = prompt("Localisation:");
+                if (name && role && pin && location) {
+                  handleAddUser({ name, role, pin, location });
+                }
+              }} className="bg-purple-600 text-white px-4 py-2 rounded">Ajouter Utilisateur</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="text-gray-300 text-[10px] font-black uppercase border-b pb-4">
+                  <tr><th>Nom</th><th>Rôle</th><th>PIN</th><th>Localisation</th><th>Actions</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="py-4 font-bold">{user.name}</td>
+                      <td className="py-4">{user.role}</td>
+                      <td className="py-4">{user.pin}</td>
+                      <td className="py-4">{user.location}</td>
+                      <td className="py-4">
+                        <button onClick={() => {
+                          const name = prompt("Nouveau nom:", user.name);
+                          const role = prompt("Nouveau rôle:", user.role);
+                          const pin = prompt("Nouveau PIN:", user.pin);
+                          const location = prompt("Nouvelle localisation:", user.location);
+                          if (name && role && pin && location) {
+                            handleUpdateUser(user.id, { name, role, pin, location });
+                          }
+                        }} className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Modifier</button>
+                        <button onClick={() => handleDeleteUser(user.id)} className="bg-red-500 text-white px-2 py-1 rounded">Supprimer</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {showTaxes && (
+          <div className="mb-10 animate-fadeIn bg-white rounded-3xl shadow-sm border p-6">
+            <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Gestion des Taxes</h2>
+            <div className="mb-4">
+              <button onClick={() => {
+                const name = prompt("Nom de la taxe:");
+                const rate = prompt("Taux (ex: 0.18 pour 18%):");
+                const type = prompt("Type (percentage/fixed):");
+                if (name && rate && type) {
+                  handleAddTax({ name, rate: parseFloat(rate), type });
+                }
+              }} className="bg-orange-600 text-white px-4 py-2 rounded">Ajouter Taxe</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="text-gray-300 text-[10px] font-black uppercase border-b pb-4">
+                  <tr><th>Nom</th><th>Taux</th><th>Type</th><th>Actions</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {taxes.map((tax) => (
+                    <tr key={tax.id} className="hover:bg-gray-50">
+                      <td className="py-4 font-bold">{tax.name}</td>
+                      <td className="py-4">{tax.rate} {tax.type === 'percentage' ? '%' : '$'}</td>
+                      <td className="py-4">{tax.type}</td>
+                      <td className="py-4">
+                        <button onClick={() => {
+                          const name = prompt("Nouveau nom:", tax.name);
+                          const rate = prompt("Nouveau taux:", tax.rate);
+                          const type = prompt("Nouveau type:", tax.type);
+                          if (name && rate && type) {
+                            handleUpdateTax(tax.id, { name, rate: parseFloat(rate), type });
+                          }
+                        }} className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Modifier</button>
+                        <button onClick={() => handleDeleteTax(tax.id)} className="bg-red-500 text-white px-2 py-1 rounded">Supprimer</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

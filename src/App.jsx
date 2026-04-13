@@ -2,10 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { NotificationProvider, NotificationContainer } from './context/NotificationContext';
 
 // Pages
 import Login from './pages/Login';
 import Home from './pages/Home';
+import Checkout from './pages/Checkout';
+import OrderHistory from './pages/OrderHistory';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
 
 // --- COMPOSANT DE PROTECTION DES ROUTES ---
@@ -31,39 +34,46 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <CartProvider>
-          <div className="min-h-screen bg-gray-50">
-            <Routes>
-              {/* Route Publique */}
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
+        <ThemeProvider>
+          <NotificationProvider>
+            <CartProvider>
+              <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+                <NotificationContainer />
+                <Routes>
+                  {/* Route Publique */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/orders" element={<OrderHistory />} />
 
-              {/* DASHBOARD CENTRALISÉ (DKS STAFF) */}
-              {/* On autorise les 3 rôles à accéder au Dashboard */}
-              <Route
-                path="/admin/dashboard"
-                element={
-                  <ProtectedRoute allowedRoles={['administrator', 'vendeur', 'caissier']}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
+                  {/* DASHBOARD CENTRALISÉ (DKS STAFF) */}
+                  {/* On autorise les 3 rôles à accéder au Dashboard */}
+                  <Route
+                    path="/admin/dashboard"
+                    element={
+                      <ProtectedRoute allowedRoles={['administrator', 'vendeur', 'caissier']}>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
 
-              {/* Gestion de l'erreur 404 */}
-              <Route path="*" element={
-                <div className="flex items-center justify-center min-h-screen font-bold text-gray-400 uppercase tracking-widest">
-                  404 - Page Introuvable (DKS)
-                </div>
-              } />
-            </Routes>
+                  {/* Gestion de l'erreur 404 */}
+                  <Route path="*" element={
+                    <div className="flex items-center justify-center min-h-screen font-bold text-gray-400 uppercase tracking-widest">
+                      404 - Page Introuvable (DKS)
+                    </div>
+                  } />
+                </Routes>
 
-            {/* Infos de Contact (Env) - Optionnel en bas de page */}
-            <footer className="fixed bottom-4 right-4 text-[10px] text-gray-400 text-right pointer-events-none">
-              <p>Double King Shop • Bunia</p>
-              <p>{import.meta.env.VITE_CONTACT_PHONE}</p>
-            </footer>
-          </div>
-        </CartProvider>
+                {/* Infos de Contact (Env) - Optionnel en bas de page */}
+                <footer className="fixed bottom-4 right-4 text-[10px] text-gray-400 text-right pointer-events-none">
+                  <p>Double King Shop • Bunia</p>
+                  <p>{import.meta.env.VITE_CONTACT_PHONE}</p>
+                </footer>
+              </div>
+            </CartProvider>
+          </NotificationProvider>
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );

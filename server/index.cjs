@@ -70,6 +70,14 @@ let db;
       category TEXT,
       date TEXT
     );
+
+    -- TABLE DES TAXES --
+    CREATE TABLE IF NOT EXISTS taxes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      rate REAL,
+      type TEXT
+    );
   `);
 
   const userCheck = await db.get('SELECT count(*) as count FROM users');
@@ -77,6 +85,11 @@ let db;
     await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Admin Double King', 'administrator', '0000', 'Bunia')");
     await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Vendeur DKS', 'vendeur', '1111', 'Bunia')");
     await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Caissier DKS', 'caissier', '2222', 'Bunia')");
+  }
+
+  const taxCheck = await db.get('SELECT count(*) as count FROM taxes');
+  if (taxCheck.count === 0) {
+    await db.run("INSERT INTO taxes (name, rate, type) VALUES ('TVA', 0.18, 'percentage')");
   }
   
   console.log("-------------------------------------------");
@@ -196,6 +209,167 @@ app.get('/api/expenses', async (req, res) => {
     const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
     res.json(expenses);
   } catch (error) { res.status(500).json({ error: "Erreur lecture dépenses" }); }
+});
+
+// --- GESTION DES UTILISATEURS ---
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await db.all('SELECT id, name, role, location FROM users ORDER BY id DESC');
+    res.json(users);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/users', async (req, res) => {
+  const { name, role, pin, location } = req.body;
+  try {
+    const result = await db.run(
+      'INSERT INTO users (name, role, pin, location) VALUES (?, ?, ?, ?)',
+      [name, role, pin, location]
+    );
+    res.status(201).json({ id: result.lastID, name, role, location });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, role, pin, location } = req.body;
+  try {
+    await db.run(
+      'UPDATE users SET name = ?, role = ?, pin = ?, location = ? WHERE id = ?',
+      [name, role, pin, location, id]
+    );
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// --- GESTION DES TAXES ---
+app.get('/api/taxes', async (req, res) => {
+  try {
+    const taxes = await db.all('SELECT * FROM taxes ORDER BY id DESC');
+    res.json(taxes);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/taxes', async (req, res) => {
+  const { name, rate, type } = req.body;
+  try {
+    const result = await db.run(
+      'INSERT INTO taxes (name, rate, type) VALUES (?, ?, ?)',
+      [name, parseFloat(rate), type]
+    );
+    res.status(201).json({ id: result.lastID, name, rate, type });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/taxes/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, rate, type } = req.body;
+  try {
+    await db.run(
+      'UPDATE taxes SET name = ?, rate = ?, type = ? WHERE id = ?',
+      [name, parseFloat(rate), type, id]
+    );
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.delete('/api/taxes/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM taxes WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// --- PAIEMENT MOBILE MONEY ---
+app.post('/api/mobile-money/initiate', async (req, res) => {
+  const { phoneNumber, provider, amount, items } = req.body;
+  try {
+    // Simulation d'appel à l'API Mobile Money
+    // En production, intégrer avec l'API réelle du fournisseur (Airtel, Orange, etc.)
+    const transactionId = `MM-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    // Ici, on simule l'initiation
+    console.log(`Initiating ${provider} payment for ${phoneNumber}, amount: ${amount} CDF`);
+
+    res.json({
+      success: true,
+      transactionId,
+      message: `Paiement initié avec ${provider.toUpperCase()}. Veuillez confirmer sur votre téléphone.`
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur initiation paiement Mobile Money' });
+  }
+});
+
+app.post('/api/mobile-money/confirm', async (req, res) => {
+  const { transactionId, cartItems, totalAmount, phoneNumber, provider } = req.body;
+  try {
+    // Simulation de confirmation
+    console.log(`Confirming transaction ${transactionId}`);
+
+    // Enregistrer la commande comme pour Pi
+    let totalOrder = totalAmount;
+    let itemsNames = [];
+
+    for (const item of cartItems) {
+      const product = await db.get('SELECT * FROM products WHERE id = ?', [item.id]);
+      if (product) {
+        const qty = item.quantity || 1;
+        await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, item.id]);
+        itemsNames.push(`${product.name} (x${qty})`);
+      }
+    }
+
+    const orderId = `MM-${transactionId.slice(-8).toUpperCase()}`;
+    await db.run(
+      `INSERT INTO orders (id, txid, customerName, total, items, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [orderId, transactionId, `Mobile Money (${provider}) - ${phoneNumber}`, totalOrder, JSON.stringify(itemsNames), 'completed', new Date().toISOString()]
+    );
+
+    res.json({
+      success: true,
+      orderId,
+      message: 'Paiement Mobile Money confirmé'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur confirmation paiement Mobile Money' });
+  }
+});
+
+// --- BACKUP DE LA BASE DE DONNÉES ---
+app.get('/api/backup', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const backupFileName = `dks_backup_${new Date().toISOString().split('T')[0]}_${Date.now()}.db`;
+    const backupPath = path.join(__dirname, 'backups', backupFileName);
+    
+    // Créer le dossier backups s'il n'existe pas
+    if (!fs.existsSync(path.join(__dirname, 'backups'))) {
+      fs.mkdirSync(path.join(__dirname, 'backups'));
+    }
+    
+    // Copier le fichier de base de données
+    fs.copyFileSync('./dks_database.db', backupPath);
+    
+    res.json({
+      success: true,
+      message: 'Sauvegarde créée avec succès',
+      backupFile: backupFileName
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde' });
+  }
 });
 
 // Ajoute ceci juste avant 'const PORT = 3001;'

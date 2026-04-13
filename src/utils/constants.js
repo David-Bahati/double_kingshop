@@ -50,6 +50,7 @@ export const ORDER_STATUS = {
 export const CURRENCIES = {
   USD: { symbol: '$', rate: 1 },
   EUR: { symbol: '€', rate: 0.92 },
+  CDF: { symbol: 'CDF', rate: 2800 }, // Franc Congolais - taux approximatif
   XOF: { symbol: 'CFA', rate: 610 },
   PI: { symbol: 'Π', rate: 0.01 } // À ajuster selon le cours
 };

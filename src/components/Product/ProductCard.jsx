@@ -11,10 +11,13 @@ const ProductCard = ({ product }) => {
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 border border-gray-100">
       <div className="h-48 bg-gray-200 relative">
-        {/* Remplace par product.image quand tu auras les photos */}
-        <div className="w-full h-full flex items-center justify-center text-gray-400">
-          <span className="text-4xl">IT</span>
-        </div>
+        {product.image && product.image !== '/uploads/default.jpg' ? (
+          <img src={`http://localhost:3001${product.image}`} alt={product.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-400">
+            <span className="text-4xl">IT</span>
+          </div>
+        )}
         <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
           Stock: {product.stock}
         </div>
