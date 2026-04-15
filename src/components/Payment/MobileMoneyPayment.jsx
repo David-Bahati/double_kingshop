@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useCart } from '../context/CartContext';
-import { CURRENCIES } from '../utils/constants';
+import { useCart } from '../../context/CartContext';
+import { CURRENCIES } from '../../utils/constants';
 
 const MobileMoneyPayment = ({ onSuccess, onError }) => {
   const [loading, setLoading] = useState(false);

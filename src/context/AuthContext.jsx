@@ -8,6 +8,28 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const normalizeRole = (role) => {
+    switch (role) {
+      case 'administrator':
+        return 'admin';
+      case 'vendeur':
+        return 'salesman';
+      case 'caissier':
+        return 'cashier';
+      default:
+        return role;
+    }
+  };
+
+  const normalizeUser = (userData) => {
+    if (!userData) return null;
+    return {
+      ...userData,
+      role: normalizeRole(userData.role),
+      originalRole: userData.role
+    };
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -17,7 +39,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedUser = localStorage.getItem('dks_user');
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        setUser(normalizeUser(JSON.parse(storedUser)));
       }
     } catch (err) {
       console.error('Erreur de lecture session:', err);
@@ -38,10 +60,11 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ pin })
       });
 
-      setUser(data.user);
+      const normalizedUser = normalizeUser(data.user);
+      setUser(normalizedUser);
       // On utilise 'dks_user' pour être cohérent avec ton Dashboard
-      localStorage.setItem('dks_user', JSON.stringify(data.user));
-      return data;
+      localStorage.setItem('dks_user', JSON.stringify(normalizedUser));
+      return { ...data, user: normalizedUser };
     } catch (err) {
       setError(err.message);
       throw err;

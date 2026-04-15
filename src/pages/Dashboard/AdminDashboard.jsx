@@ -200,6 +200,14 @@ const AdminDashboard = () => {
 
   const handlePrintReceipt = (order) => {
     const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Impossible d’ouvrir la fenêtre de reçu.');
+      return;
+    }
+
+    const itemsHtml = order.items?.map(i => `<p>• ${i}</p>`).join('') || '<p>Articles informatiques</p>';
+
+    printWindow.document.open();
     printWindow.document.write(`
       <html>
         <head>
@@ -227,7 +235,7 @@ const AdminDashboard = () => {
               <p><strong>DATE :</strong> ${new Date(order.createdAt).toLocaleString()}</p>
               <p><strong>CLIENT :</strong> ${order.customerName || 'Client DKS'}</p>
               <div class="line"></div>
-              ${order.items ? order.items.map(i => `<p>• ${i}</p>`).join('') : '<p>Articles informatiques</p>'}
+              ${itemsHtml}
               <p style="font-size: 9px; margin-top: 10px; color: #666;">TYPE: ${order.txid === 'CASH_PAYMENT' ? 'CASH' : 'BLOCKCHAIN PI'}</p>
             </div>
             <div class="total">TOTAL : ${order.total.toFixed(2)} $</div>
@@ -237,7 +245,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <script>
-            window.onload = function() { window.print(); setTimeout(() => window.close(), 500); }
+            window.onload = function() { window.focus(); window.print(); };
           </script>
         </body>
       </html>
@@ -248,21 +256,26 @@ const AdminDashboard = () => {
   const handleAddProduct = async (formData) => {
     try {
       const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'POST',
         body: formData,
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers
       });
+
       if (response.ok) {
         const savedProduct = await response.json();
         setProducts([savedProduct, ...products]);
         setStats(prev => ({ ...prev, totalProducts: prev.totalProducts + 1 }));
+        addNotification('Produit ajouté avec succès.', 'success');
+        await fetchDashboardData();
       } else {
         const error = await response.json();
-        alert(`Erreur: ${error.message}`);
+        alert(`Erreur: ${error.message || 'Impossible d’ajouter le produit.'}`);
       }
     } catch (error) {
-      alert("Erreur lors de l'upload de l'image.");
+      console.error('Add product error:', error);
+      alert("Erreur lors de l'upload du produit. Vérifiez votre connexion et réessayez.");
     }
   };
 

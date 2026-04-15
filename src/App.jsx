@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { NotificationProvider, NotificationContainer } from './context/NotificationContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ROLES } from './utils/constants';
 
 // Pages
 import Login from './pages/Login';
@@ -10,6 +12,13 @@ import Home from './pages/Home';
 import Checkout from './pages/Checkout';
 import OrderHistory from './pages/OrderHistory';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
+import Products from './pages/Products';
+import Users from './pages/Users';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+import CashierDashboard from './pages/CashierDashboard';
+import SalesmanDashboard from './pages/SalesmanDashboard';
+import Customers from './pages/Customers';
 
 // --- COMPOSANT DE PROTECTION DES ROUTES ---
 // On l'adapte pour accepter Admin, Vendeur et Caissier sur le même Dashboard
@@ -45,13 +54,62 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/orders" element={<OrderHistory />} />
+                  <Route path="/products" element={<Products />} />
+
+                  <Route
+                    path="/users"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <Users />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <Reports />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/cashier/dashboard"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.CASHIER]}>
+                        <CashierDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/salesman/dashboard"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.SALESMAN]}>
+                        <SalesmanDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <Customers />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* DASHBOARD CENTRALISÉ (DKS STAFF) */}
-                  {/* On autorise les 3 rôles à accéder au Dashboard */}
                   <Route
                     path="/admin/dashboard"
                     element={
-                      <ProtectedRoute allowedRoles={['administrator', 'vendeur', 'caissier']}>
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.SALESMAN, ROLES.CASHIER]}>
                         <AdminDashboard />
                       </ProtectedRoute>
                     }

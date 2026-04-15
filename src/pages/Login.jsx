@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -95,6 +95,15 @@ const Login = () => {
         </form>
 
         <div className="mt-8 pt-6 border-t border-gray-100">
+          <div className="flex justify-between items-center gap-4 mb-4">
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+            >
+              ← Retour à l'accueil
+            </Link>
+            <span className="text-[11px] text-gray-500">Code PIN rapide</span>
+          </div>
           <div className="flex justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest">
             <span>Admin: 0000</span>
             <span>Vendeur: 1111</span>
