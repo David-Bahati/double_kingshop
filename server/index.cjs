@@ -11,11 +11,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// Remplacez votre ligne 14 par ceci :
 app.get('/validation-key.txt', (req, res) => {
-      // Le '..' permet de sortir du dossier 'server' pour trouver le fichier à la racine
-          res.sendFile(path.join(__dirname, '..', 'validation-key.txt'));
-          });
+      const path = require('path');
+          const fs = require('fs');
+              
+                  // Test 1: Dans le dossier server
+                      const path1 = path.join(__dirname, 'validation-key.txt');
+                          // Test 2: À la racine du projet complet
+                              const path2 = path.join(process.cwd(), 'validation-key.txt');
+
+                                  if (fs.existsSync(path1)) {
+                                          return res.sendFile(path1);
+                                              } else if (fs.existsSync(path2)) {
+                                                      return res.sendFile(path2);
+                                                          } else {
+                                                                  // Si aucun ne marche, on affiche un message d'erreur personnalisé
+                                                                          res.status(404).send("Fichier introuvable sur le serveur. Essayez de le mettre dans le dossier 'server'.");
+                                                                              }
+                                                                              });
+
+
 
 
     
