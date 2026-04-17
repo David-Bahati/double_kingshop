@@ -11,6 +11,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Remplacez votre ligne 14 par ceci :
+app.get('/validation-key.txt', (req, res) => {
+    res.sendFile(path.join(__dirname, 'validation-key.txt'));
+    });
+    
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
