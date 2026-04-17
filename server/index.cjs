@@ -16,8 +16,8 @@ app.get('/validation-key.txt', (req, res) => {
       // Le '..' permet de sortir du dossier 'server' pour trouver le fichier à la racine
           res.sendFile(path.join(__dirname, '..', 'validation-key.txt'));
           });
-          
-})
+
+
     
 
 const storage = multer.diskStorage({
