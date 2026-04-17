@@ -13,8 +13,11 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Remplacez votre ligne 14 par ceci :
 app.get('/validation-key.txt', (req, res) => {
-    res.sendFile(path.join(__dirname, 'validation-key.txt'));
-    });
+      // Le '..' permet de sortir du dossier 'server' pour trouver le fichier à la racine
+          res.sendFile(path.join(__dirname, '..', 'validation-key.txt'));
+          });
+          
+})
     
 
 const storage = multer.diskStorage({
