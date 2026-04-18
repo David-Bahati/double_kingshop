@@ -408,7 +408,7 @@ app.get('/api/backup', async (req, res) => {
 app.get('/', (req, res) => {
     res.json({ message: "L'API Double King Shop tourne sur le port 3001", status: "OK" });
     });
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`);
           // ... le reste du code
