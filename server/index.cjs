@@ -52,7 +52,15 @@ const PI_HEADERS = {
   'Authorization': `Key ${process.env.PI_API_SECRET}`,
   'Content-Type': 'application/json'
 };
-
+// Route pour tester la base de données
+app.get('/api/test-db', async (req, res) => {
+  try {
+      const products = await db.all('SELECT * FROM products LIMIT 5');
+          res.json({ success: true, count: products.length, products });
+            } catch (error) {
+                res.json({ success: false, error: error.message });
+                  }
+                  });
 // --- INITIALISATION DE LA BASE DE DONNÉES DKS ---
 let db;
 (async () => {
