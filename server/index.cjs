@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
+const { version } = require('os');
 
 const app = express();
 app.use(cors({
@@ -17,7 +18,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.get('/validation-key.txt', (req, res) => {
+app.get('/validation-key.txt', (req, res)=>{
       const path = require('path');
           const fs = require('fs');
               
@@ -413,9 +414,17 @@ app.get('/api/backup', async (req, res) => {
 });
 
 // Ajoute ceci juste avant 'const PORT = 3001;'
-app.get('/', (req, res) => {
-    res.json({ message: "L'API Double King Shop tourne sur le port 3001", status: "OK" });
-    });
+const path = require('path');
+
+// 1. Sers les fichiers du frontend (dossier dist)
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// 2. Pour toutes les routes non-API, renvoie l'index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+
+  // ... app.listen(...)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`);
