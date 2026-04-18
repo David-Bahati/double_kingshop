@@ -5,6 +5,7 @@
           "type": "module",
             "description": "Double King Shop - Système de gestion complet",
               "scripts": {
+                "start": "cd server && node index.cjs",
                   "dev": "concurrently \"pnpm run server\" \"pnpm run client\"",
                       "server": "cd server && node index.cjs",
                           "client": "vite",
