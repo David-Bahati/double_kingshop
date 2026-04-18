@@ -166,40 +166,53 @@ app.post('/api/orders/pi', async (req, res) => {
 });
 
 // 3. MOBILE MONEY : INITIATION
+// ... à l'intérieur de tes routes API dans index.js ...
+
+// 1. INITIATION MOBILE MONEY (M-Pesa, Airtel, Orange)
 app.post('/api/mobile-money/initiate', async (req, res) => {
     try {
         const { phoneNumber, provider, amountUSD } = req.body;
-        const transactionId = `MM-DKS-${Date.now()}`;
-        // Simulation initiation opérateur
+        
+        // Génération d'un ID de transaction unique incluant l'opérateur
+        const transactionId = `DKS-${provider.toUpperCase()}-${Date.now()}`;
+        
+        console.log(`[PAYMENT] Initiation ${provider.toUpperCase()} pour ${phoneNumber}`);
+        
         res.json({ success: true, transactionId });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// 4. MOBILE MONEY : CONFIRMATION & STOCK
+// 4. CONFIRMATION ET MISE À JOUR DU STOCK DKS
 app.post('/api/mobile-money/confirm', async (req, res) => {
     try {
-        const { transactionId, cartItems, totalAmount } = req.body;
+        const { transactionId, cartItems, totalAmount, provider } = req.body;
 
+        // Transaction SQLite sécurisée
         await db.run('BEGIN TRANSACTION');
-        
+
+        // Déduction des stocks
         for (const item of cartItems) {
             await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
         }
 
+        //  .Enregistrement de la vente dans l'historique DKS
         await db.run(
             `INSERT INTO orders (id, total, items, status, paymentMethod, createdAt) 
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [transactionId, totalAmount, JSON.stringify(cartItems), 'completed', 'mobile_money', new Date().toISOString()]
+            [transactionId, totalAmount, JSON.stringify(cartItems), 'completed', `mobile_money_${provider}`, new Date().toISOString()]
         );
 
         await db.run('COMMIT');
-        console.log(`✅ Vente Mobile Money réussie : ${transactionId}`);
+        console.log(`[SUCCESS] Vente enregistrée : ${transactionId}`);
         res.json({ success: true });
     } catch (error) {
         await db.run('ROLLBACK');
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // 5. HISTORIQUE DES COMMANDES
 app.get('/api/orders', async (req, res) => {
