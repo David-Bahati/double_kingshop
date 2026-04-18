@@ -22,8 +22,8 @@ const MobileMoneyPayment = ({ onSuccess, onError }) => {
   }, [provider]);
 
   const handlePayment = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) {
-      alert('Veuillez entrer un numéro complet (ex: 0823038945)');
+    if (!phoneNumber || phoneNumber.length < 9) {
+      alert('Veuillez entrer un numéro valide (ex: 0640000010)');
       return;
     }
 
@@ -31,39 +31,31 @@ const MobileMoneyPayment = ({ onSuccess, onError }) => {
       setLoading(true);
       setPaymentStatus('initializing');
 
-      // 1. Appel au backend pour créer la transaction FedaPay
       const data = await apiService.request('/api/mobile-money/initiate', {
         method: 'POST',
         body: JSON.stringify({
           phoneNumber,
           provider,
-          amountUSD: totalUSD
+          amountUSD: totalUSD,
         }),
       });
 
-      if (data.success && data.url) {
+      if (data.url) {
         setPaymentStatus('pending');
+        // On ouvre la page FedaPay dans un nouvel onglet
+        window.open(data.url, '_blank');
         
-        // 2. REDIRECTION VERS FEDAPAY
-        // Cela ouvre l'interface sécurisée de FedaPay pour le client
-        window.location.href = data.url;
-
-        /** * NOTE POUR DOUBLE KING SHOP :
-         * Une fois le paiement fini, FedaPay renverra le client vers ton site.
-         * Tu devras alors appeler /api/mobile-money/confirm pour valider le stock.
-         **/
-      } else {
-        throw new Error("Impossible de générer le lien de paiement.");
+        alert(`Une page de paiement sécurisée s'est ouverte. Revenez ici une fois le paiement validé.`);
       }
 
     } catch (error) {
-      console.error("Erreur Initiation:", error);
       setPaymentStatus('failed');
-      if (onError) onError('Erreur technique lors de la connexion au service.');
+      console.error("Erreur initiation:", error);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xl">
