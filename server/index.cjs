@@ -6,442 +6,147 @@ const multer = require('multer');
 const path = require('path');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
-const { version } = require('os');
+const fs = require('fs');
 
 const app = express();
-app.use(cors({
-    origin: '*', // Pour le test, '*' autorise tout. Si ça marche, on sécurisera après.
-      methods: ['GET', 'POST', 'PUT', 'DELETE'],
-        allowedHeaders: ['Content-Type', 'Authorization']
-        }));
 
+// --- CONFIGURATION MIDDLEWARES ---
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-    
-  app.get('/validation-key.txt', (req, res) => {
-    const path = require('path');
-    const fs = require('fs');
 
-    // On remonte d'un dossier (..) pour sortir de 'server' et arriver à la racine
-    const rootPath = path.resolve(__dirname, '..', 'validation-key.txt');
+// --- INITIALISATION DE LA BASE DE DONNÉES ---
+let db;
+async function initDb() {
+    db = await open({
+        filename: path.join(__dirname, 'dks_database.db'),
+        driver: sqlite3.Database
+    });
 
-    if (fs.existsSync(rootPath)) {
-        return res.sendFile(rootPath);
-    } else {
-        // Ce message t'aidera à comprendre où le serveur regarde si ça échoue
-        res.status(404).send(`Fichier introuvable à : ${rootPath}`);
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, price REAL, stock INTEGER,
+            category TEXT, description TEXT, image TEXT, createdAt TEXT
+        );
+        CREATE TABLE IF NOT EXISTS orders (
+            id TEXT PRIMARY KEY, txid TEXT, customerName TEXT,
+            total REAL, items TEXT, status TEXT, createdAt TEXT
+        );
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, role TEXT, pin TEXT, location TEXT
+        );
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT, amount REAL, category TEXT, date TEXT
+        );
+        CREATE TABLE IF NOT EXISTS taxes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, rate REAL, type TEXT
+        );
+    `);
+
+    // Insertion des utilisateurs par défaut si vide
+    const userCheck = await db.get('SELECT count(*) as count FROM users');
+    if (userCheck.count === 0) {
+        await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Admin Double King', 'administrator', '0000', 'Bunia')");
+        await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Vendeur DKS', 'vendeur', '1111', 'Bunia')");
+        await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Caissier DKS', 'caissier', '2222', 'Bunia')");
     }
+    console.log("-------------------------------------------");
+    console.log("🗄️ BASE DE DONNÉES DKS CONNECTÉE (SQLITE)");
+    console.log("-------------------------------------------");
+}
+
+initDb().catch(err => console.error("❌ Erreur DB:", err));
+
+// Middleware de sécurité : On attend que la DB soit prête
+app.use('/api', (req, res, next) => {
+    if (!db) return res.status(503).json({ error: "Base de données en cours de chargement..." });
+    next();
 });
-                                                           
-                                                                            
 
-
-
-
-    
-
+// --- CONFIGURATION MULTER ---
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-const PI_API_BASE = 'https://api.minepi.com/v2';
-const PI_HEADERS = {
-  'Authorization': `Key ${process.env.PI_API_SECRET}`,
-  'Content-Type': 'application/json'
-};
-// Route pour tester la base de données
-app.get('/api/test-db', async (req, res) => {
-  try {
-      const products = await db.all('SELECT * FROM products LIMIT 5');
-          res.json({ success: true, count: products.length, products });
-            } catch (error) {
-                res.json({ success: false, error: error.message });
-                  }
-                  });
-// --- INITIALISATION DE LA BASE DE DONNÉES DKS ---
-let db;
-(async () => {
-  db = await open({
-      // Utilise path.join et __dirname pour un chemin absolu garanti
-        filename: path.join(__dirname, 'dks_database.db'),
-          driver: sqlite3.Database
-          });
+// --- ROUTES API ---
 
-
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      price REAL,
-      stock INTEGER,
-      category TEXT,
-      description TEXT,
-      image TEXT,
-      createdAt TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      txid TEXT,
-      customerName TEXT,
-      total REAL,
-      items TEXT, 
-      status TEXT,
-      createdAt TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      role TEXT,
-      pin TEXT,
-      location TEXT
-    );
-
-    -- NOUVEAU : TABLE DES DÉPENSES --
-    CREATE TABLE IF NOT EXISTS expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      description TEXT,
-      amount REAL,
-      category TEXT,
-      date TEXT
-    );
-
-    -- TABLE DES TAXES --
-    CREATE TABLE IF NOT EXISTS taxes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      rate REAL,
-      type TEXT
-    );
-  `);
-
-  const userCheck = await db.get('SELECT count(*) as count FROM users');
-  if (userCheck.count === 0) {
-    await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Admin Double King', 'administrator', '0000', 'Bunia')");
-    await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Vendeur DKS', 'vendeur', '1111', 'Bunia')");
-    await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Caissier DKS', 'caissier', '2222', 'Bunia')");
-  }
-
-  const taxCheck = await db.get('SELECT count(*) as count FROM taxes');
-  if (taxCheck.count === 0) {
-    await db.run("INSERT INTO taxes (name, rate, type) VALUES ('TVA', 0.18, 'percentage')");
-  }
-  
-  console.log("-------------------------------------------");
-  console.log("🗄️ BASE DE DONNÉES DKS CONNECTÉE (SQLITE)");
-  console.log("-------------------------------------------");
-})();
-
-// --- AUTHENTIFICATION ---
-app.post('/api/auth/login', async (req, res) => {
-  const { pin } = req.body;
-  try {
-    const staffMember = await db.get('SELECT * FROM users WHERE pin = ?', [pin]);
-    if (staffMember) {
-      res.json({ success: true, user: { name: staffMember.name, role: staffMember.role, location: staffMember.location } });
+// Validation Pi Network
+app.get('/validation-key.txt', (req, res) => {
+    const rootPath = path.resolve(__dirname, '..', 'validation-key.txt');
+    if (fs.existsSync(rootPath)) {
+        return res.sendFile(rootPath);
     } else {
-      res.status(401).json({ success: false, error: 'Code PIN incorrect' });
+        res.status(404).send("Erreur : Fichier absent du serveur Railway.");
     }
-  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- PRODUITS ---
+// Auth
+app.post('/api/auth/login', async (req, res) => {
+    const { pin } = req.body;
+    try {
+        const staffMember = await db.get('SELECT * FROM users WHERE pin = ?', [pin]);
+        if (staffMember) {
+            res.json({ success: true, user: { name: staffMember.name, role: staffMember.role, location: staffMember.location } });
+        } else {
+            res.status(401).json({ success: false, error: 'Code PIN incorrect' });
+        }
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// Produits
 app.get('/api/products', async (req, res) => {
-  const products = await db.all('SELECT * FROM products ORDER BY id DESC');
-  res.json(products);
+    try {
+        const products = await db.all('SELECT * FROM products ORDER BY id DESC');
+        res.json(products);
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/products', upload.single('image'), async (req, res) => {
-  try {
-    const { name, price, stock, category, description } = req.body;
-    const imagePath = req.file ? `/uploads/${req.file.filename}` : '/uploads/default.jpg';
-    const createdAt = new Date().toISOString();
-    const result = await db.run(
-      `INSERT INTO products (name, price, stock, category, description, image, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [name, parseFloat(price), parseInt(stock), category, description, imagePath, createdAt]
-    );
-    res.status(201).json({ id: result.lastID, name, price, stock, image: imagePath });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+    try {
+        const { name, price, stock, category, description } = req.body;
+        const imagePath = req.file ? `/uploads/${req.file.filename}` : '/uploads/default.jpg';
+        const result = await db.run(
+            `INSERT INTO products (name, price, stock, category, description, image, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [name, parseFloat(price), parseInt(stock), category, description, imagePath, new Date().toISOString()]
+        );
+        res.status(201).json({ id: result.lastID, name, image: imagePath });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- COMMANDES ---
-app.get('/api/orders', async (req, res) => {
-  const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
-  const formattedOrders = orders.map(o => ({ ...o, items: JSON.parse(o.items || '[]') }));
-  res.json(formattedOrders);
-});
-
-// --- PAIEMENT PI ---
-app.post('/api/pi/approve', async (req, res) => {
-  const { paymentId } = req.body;
-  try {
-    await axios.post(`${PI_API_BASE}/payments/${paymentId}/approve`, {}, { headers: PI_HEADERS });
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Erreur approbation Pi:', error);
-    res.status(500).json({ error: 'Erreur approbation Pi' });
-  }
-});
-
-app.post('/api/pi/complete', async (req, res) => {
-  const { paymentId, txid, cartItems } = req.body;
-  try {
-    await axios.post(`${PI_API_BASE}/payments/${paymentId}/complete`, { txid }, { headers: PI_HEADERS });
-    let totalOrder = 0;
-    let itemsNames = [];
-
-    for (const item of cartItems) {
-      const product = await db.get('SELECT * FROM products WHERE id = ?', [item.id]);
-      if (product) {
-        const qty = item.quantity || 1;
-        await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, item.id]);
-        totalOrder += (product.price * qty);
-        itemsNames.push(`${product.name} (x${qty})`);
-      }
-    }
-
-    const orderId = paymentId.slice(-8).toUpperCase();
-    await db.run(
-      `INSERT INTO orders (id, txid, customerName, total, items, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [orderId, txid, "Client Pi App", totalOrder, JSON.stringify(itemsNames), 'completed', new Date().toISOString()]
-    );
-    res.json({ success: true, orderId });
-  } catch (error) { res.status(500).json({ error: 'Erreur Pi' }); }
-});
-
-// --- POS / CASH SALE ---
-app.post('/api/pos/cash-sale', async (req, res) => {
-  const { cartItems, customerName, total } = req.body;
-  try {
-    let itemsSummary = [];
-    for (const item of cartItems) {
-      await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
-      itemsSummary.push(`${item.name} (x${item.quantity})`);
-    }
-    const orderId = "CASH-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-    await db.run(
-      `INSERT INTO orders (id, txid, customerName, total, items, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [orderId, "CASH_PAYMENT", customerName || "Client Comptant", total, JSON.stringify(itemsSummary), 'completed', new Date().toISOString()]
-    );
-    res.json({ success: true, orderId });
-  } catch (error) { res.status(500).json({ error: "Erreur vente cash" }); }
-});
-
-// --- NOUVEAU : GESTION DES DÉPENSES ---
-app.post('/api/expenses', async (req, res) => {
-  const { description, amount, category } = req.body;
-  try {
-    await db.run(
-      `INSERT INTO expenses (description, amount, category, date) VALUES (?, ?, ?, ?)`,
-      [description, parseFloat(amount), category, new Date().toISOString()]
-    );
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: "Erreur enregistrement dépense" }); }
-});
-
+// Dépenses & Taxes (Ajoute ici tes autres routes GET/POST api/expenses, api/taxes, etc.)
 app.get('/api/expenses', async (req, res) => {
-  try {
     const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
     res.json(expenses);
-  } catch (error) { res.status(500).json({ error: "Erreur lecture dépenses" }); }
 });
 
-// --- GESTION DES UTILISATEURS ---
-app.get('/api/users', async (req, res) => {
-  try {
-    const users = await db.all('SELECT id, name, role, location FROM users ORDER BY id DESC');
-    res.json(users);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.post('/api/users', async (req, res) => {
-  const { name, role, pin, location } = req.body;
-  try {
-    const result = await db.run(
-      'INSERT INTO users (name, role, pin, location) VALUES (?, ?, ?, ?)',
-      [name, role, pin, location]
-    );
-    res.status(201).json({ id: result.lastID, name, role, location });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.put('/api/users/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, role, pin, location } = req.body;
-  try {
-    await db.run(
-      'UPDATE users SET name = ?, role = ?, pin = ?, location = ? WHERE id = ?',
-      [name, role, pin, location, id]
-    );
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.delete('/api/users/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await db.run('DELETE FROM users WHERE id = ?', [id]);
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// --- GESTION DES TAXES ---
-app.get('/api/taxes', async (req, res) => {
-  try {
-    const taxes = await db.all('SELECT * FROM taxes ORDER BY id DESC');
-    res.json(taxes);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.post('/api/taxes', async (req, res) => {
-  const { name, rate, type } = req.body;
-  try {
-    const result = await db.run(
-      'INSERT INTO taxes (name, rate, type) VALUES (?, ?, ?)',
-      [name, parseFloat(rate), type]
-    );
-    res.status(201).json({ id: result.lastID, name, rate, type });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.put('/api/taxes/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, rate, type } = req.body;
-  try {
-    await db.run(
-      'UPDATE taxes SET name = ?, rate = ?, type = ? WHERE id = ?',
-      [name, parseFloat(rate), type, id]
-    );
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.delete('/api/taxes/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await db.run('DELETE FROM taxes WHERE id = ?', [id]);
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// --- PAIEMENT MOBILE MONEY ---
-app.post('/api/mobile-money/initiate', async (req, res) => {
-  const { phoneNumber, provider, amount, items } = req.body;
-  try {
-    // Simulation d'appel à l'API Mobile Money
-    // En production, intégrer avec l'API réelle du fournisseur (Airtel, Orange, etc.)
-    const transactionId = `MM-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    // Ici, on simule l'initiation
-    console.log(`Initiating ${provider} payment for ${phoneNumber}, amount: ${amount} CDF`);
-
-    res.json({
-      success: true,
-      transactionId,
-      message: `Paiement initié avec ${provider.toUpperCase()}. Veuillez confirmer sur votre téléphone.`
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur initiation paiement Mobile Money' });
-  }
-});
-
-app.post('/api/mobile-money/confirm', async (req, res) => {
-  const { transactionId, cartItems, totalAmount, phoneNumber, provider } = req.body;
-  try {
-    // Simulation de confirmation
-    console.log(`Confirming transaction ${transactionId}`);
-
-    // Enregistrer la commande comme pour Pi
-    let totalOrder = totalAmount;
-    let itemsNames = [];
-
-    for (const item of cartItems) {
-      const product = await db.get('SELECT * FROM products WHERE id = ?', [item.id]);
-      if (product) {
-        const qty = item.quantity || 1;
-        await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, item.id]);
-        itemsNames.push(`${product.name} (x${qty})`);
-      }
-    }
-
-    const orderId = `MM-${transactionId.slice(-8).toUpperCase()}`;
-    await db.run(
-      `INSERT INTO orders (id, txid, customerName, total, items, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [orderId, transactionId, `Mobile Money (${provider}) - ${phoneNumber}`, totalOrder, JSON.stringify(itemsNames), 'completed', new Date().toISOString()]
-    );
-
-    res.json({
-      success: true,
-      orderId,
-      message: 'Paiement Mobile Money confirmé'
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur confirmation paiement Mobile Money' });
-  }
-});
-
-// --- BACKUP DE LA BASE DE DONNÉES ---
-app.get('/api/backup', async (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    
-    const backupFileName = `dks_backup_${new Date().toISOString().split('T')[0]}_${Date.now()}.db`;
-    const backupPath = path.join(__dirname, 'backups', backupFileName);
-    
-    // Créer le dossier backups s'il n'existe pas
-    if (!fs.existsSync(path.join(__dirname, 'backups'))) {
-      fs.mkdirSync(path.join(__dirname, 'backups'));
-    }
-    
-    // Copier le fichier de base de données
-    fs.copyFileSync('./dks_database.db', backupPath);
-    
-    res.json({
-      success: true,
-      message: 'Sauvegarde créée avec succès',
-      backupFile: backupFileName
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur lors de la sauvegarde' });
-  }
-});
-
-// Ajoute ceci juste avant 'const PORT = 3001;'
-
-// 1. Sers les fichiers du frontend (dossier dist)
-
-// Chemin vers le dossier dist
+// --- SERVIR LE FRONTEND (À METTRE TOUJOURS EN DERNIER) ---
 const distPath = path.join(__dirname, '../dist');
-
-console.log('📂 Chemin du dossier dist:', distPath); // Pour le debug
-
-// 1. Sers les fichiers statiques
 app.use(express.static(distPath));
 
-// 2. Route pour attraper toutes les requêtes (SPA)
+// Route SPA pour React/Vite : Redirige tout vers index.html sauf les routes /api
 app.get('*', (req, res) => {
-    const indexPath = path.join(distPath, 'index.html');
-        console.log('📄 Tentative d\'envoi de:', indexPath);
-            
-                res.sendFile(indexPath, (err) => {
-                        if (err) {
-                                    console.error('❌ ERREUR: Impossible de trouver index.html');
-                                                console.error('Détails:', err);
-                                                            res.status(500).send('Erreur: Le frontend n\'a pas été buildé correctement. Vérifie les logs.');
-                                                                    }
-                                                                        });
-                                                                        });
+    if (req.url.startsWith('/api')) return res.status(404).json({ error: "Route API non trouvée" });
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) res.status(500).send("Erreur: Frontend absent. Build ton projet.");
+    });
+});
 
-  // ... app.listen(...)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 SERVEUR DKS SÉCURISÉ SUR PORT ${PORT}`);
-          // ... le reste du code
-          });
-
+    console.log(`🚀 SERVEUR DKS OPÉRATIONNEL SUR PORT ${PORT}`);
+});

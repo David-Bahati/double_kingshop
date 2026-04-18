@@ -1,12 +1,11 @@
-
-const API_BASE_URL = "https://doublekingshop-production-5fdb.up.railway.app";
+// On laisse vide pour utiliser le même domaine que le frontend (plus fiable sur Railway)
+const API_BASE_URL = ""; 
 
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem('token');
   }
-
 
   setToken(token) {
     this.token = token;
@@ -18,6 +17,7 @@ class ApiService {
   }
 
   async request(endpoint, options = {}) {
+    // On s'assure que l'URL commence par le bon domaine/préfixe
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
@@ -32,10 +32,18 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      // On vérifie si la réponse est du JSON avant de parser
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+          data = await response.json();
+      } else {
+          data = { message: await response.text() };
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || 'Une erreur est survenue');
+        throw new Error(data.error || data.message || 'Une erreur est survenue');
       }
 
       return data;
@@ -45,86 +53,45 @@ class ApiService {
     }
   }
 
-  // Auth
+  // --- AUTH ---
   async login(credentials) {
+    // Le serveur attend un objet { pin: "0000" }
+    // On s'assure d'appeler /api/auth/login
     const data = await this.request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
     });
-    if (data.token) {
-      this.setToken(data.token);
+    if (data.success && data.user) {
+      // Ton serveur ne renvoie pas de "token" mais un objet "user"
+      this.setToken("dummy-session-token"); 
     }
     return data;
   }
 
-  async register(userData) {
-    return this.request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData)
-    });
-  }
-
-  async logout() {
-    localStorage.removeItem('token');
-    this.token = null;
-  }
-
-  // Products
+  // --- PRODUITS (AJOUT DU PRÉFIXE /api) ---
   async getProducts() {
-    return this.request('/products');
+    return this.request('/api/products');
   }
 
   async getProduct(id) {
-    return this.request(`/products/${id}`);
+    return this.request(`/api/products/${id}`);
   }
 
   async createProduct(productData) {
-    return this.request('/products', {
+    return this.request('/api/products', {
       method: 'POST',
       body: JSON.stringify(productData)
     });
   }
 
-  async updateProduct(id, productData) {
-    return this.request(`/products/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(productData)
-    });
-  }
-
-  async deleteProduct(id) {
-    return this.request(`/products/${id}`, {
-      method: 'DELETE'
-    });
-  }
-
-  // Orders
+  // --- COMMANDES (AJOUT DU PRÉFIXE /api) ---
   async getOrders() {
-    return this.request('/orders');
+    return this.request('/api/orders');
   }
 
-  async createOrder(orderData) {
-    return this.request('/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData)
-    });
-  }
-
-  async updateOrderStatus(id, status) {
-    return this.request(`/orders/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status })
-    });
-  }
-
-  // Users (Admin only)
+  // --- UTILISATEURS (AJOUT DU PRÉFIXE /api) ---
   async getUsers() {
-    return this.request('/users');
-  }
-
-  // Reports
-  async getReports(startDate, endDate) {
-    return this.request(`/reports?start=${startDate}&end=${endDate}`);
+    return this.request('/api/users');
   }
 }
 
