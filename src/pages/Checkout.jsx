@@ -12,7 +12,7 @@ const Checkout = () => {
   const handleSuccess = () => {
     clearCart();
     alert('Paiement réussi ! Double King Shop vous remercie.');
-    navigate('/orders'); // Redirection vers l'historique après succès
+    navigate('/orders'); 
   };
 
   const handleError = (error) => {
@@ -35,6 +35,15 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
+        
+        {/* BOUTON RETOUR AJOUTÉ ICI */}
+        <button 
+          onClick={() => navigate(-1)} 
+          className="flex items-center gap-2 mb-6 text-gray-600 font-black uppercase text-[10px] tracking-widest bg-white py-3 px-6 rounded-2xl shadow-sm border border-gray-100 active:scale-95 transition-all"
+        >
+          ← Retour à la boutique
+        </button>
+
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
           <div className="bg-blue-600 p-8 text-white flex justify-between items-center">
             <h1 className="text-2xl font-black italic uppercase tracking-tighter">Finaliser la Commande</h1>
@@ -49,7 +58,6 @@ const Checkout = () => {
                 <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                   {cartItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                      {/* CORRECTION URL IMAGE POUR RAILWAY */}
                       <img 
                         src={item.image.startsWith('http') ? item.image : `${item.image}`} 
                         alt={item.name} 

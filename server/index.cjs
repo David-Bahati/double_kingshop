@@ -7,8 +7,15 @@ const path = require('path');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const fs = require('fs');
+// IMPORTATION FEDAPAY
+const { FedaPay, Transaction } = require('fedapay');
 
 const app = express();
+
+// --- CONFIGURATION FEDAPAY ---
+// Ces clés doivent être dans l'onglet "Variables" sur Railway
+FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY);
+FedaPay.setEnvironment(process.env.FEDAPAY_MODE || 'sandbox');
 
 // --- CONFIGURATION MIDDLEWARES ---
 app.use(cors({
@@ -83,16 +90,6 @@ const upload = multer({ storage });
 
 // --- ROUTES API ---
 
-// Validation Pi Network
-app.get('/validation-key.txt', (req, res) => {
-    const rootPath = path.resolve(__dirname, '..', 'validation-key.txt');
-    if (fs.existsSync(rootPath)) {
-        return res.sendFile(rootPath);
-    } else {
-        res.status(404).send("Erreur : Fichier absent.");
-    }
-});
-
 // Auth
 app.post('/api/auth/login', async (req, res) => {
     const { pin } = req.body;
@@ -114,90 +111,57 @@ app.get('/api/products', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/products', upload.single('image'), async (req, res) => {
-    try {
-        const { name, price, stock, category, description } = req.body;
-        const imagePath = req.file ? `/uploads/${req.file.filename}` : '/uploads/default.jpg';
-        const result = await db.run(
-            `INSERT INTO products (name, price, stock, category, description, image, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [name, parseFloat(price), parseInt(stock), category, description, imagePath, new Date().toISOString()]
-        );
-        res.status(201).json({ id: result.lastID, name, image: imagePath });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
 // ==========================================
-//    NOUVELLES ROUTES : PAIEMENTS & VENTES
+//    NOUVELLES ROUTES : PAIEMENTS RÉELS
 // ==========================================
 
-// 1. PI NETWORK : APPROBATION
-app.post('/api/pi/approve', (req, res) => {
-    const { paymentId } = req.body;
-    console.log(`Paiement Pi initié : ${paymentId}`);
-    res.json({ success: true });
-});
-
-// 2. PI NETWORK : ENREGISTREMENT & STOCK
-app.post('/api/orders/pi', async (req, res) => {
-    try {
-        const { paymentId, txid, amount, items } = req.body;
-        
-        await db.run('BEGIN TRANSACTION');
-        
-        // Mise à jour des stocks pour chaque produit
-        for (const item of items) {
-            await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
-        }
-
-        // Enregistrement de la vente
-        await db.run(
-            `INSERT INTO orders (id, txid, total, items, status, paymentMethod, createdAt) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [paymentId, txid, amount, JSON.stringify(items), 'completed', 'pi_network', new Date().toISOString()]
-        );
-
-        await db.run('COMMIT');
-        console.log(`✅ Vente Pi réussie : ${paymentId}`);
-        res.status(201).json({ success: true });
-    } catch (error) {
-        await db.run('ROLLBACK');
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 3. MOBILE MONEY : INITIATION
-// ... à l'intérieur de tes routes API dans index.js ...
-
-// 1. INITIATION MOBILE MONEY (M-Pesa, Airtel, Orange)
+// 1. INITIATION RÉELLE VIA FEDAPAY (Remplace la simulation)
 app.post('/api/mobile-money/initiate', async (req, res) => {
     try {
         const { phoneNumber, provider, amountUSD } = req.body;
         
-        // Génération d'un ID de transaction unique incluant l'opérateur
-        const transactionId = `DKS-${provider.toUpperCase()}-${Date.now()}`;
+        // Création de la transaction chez FedaPay
+        const transaction = await Transaction.create({
+            description: `Achat DKS - ${provider}`,
+            amount: amountUSD,
+            currency: { iso: 'USD' },
+            customer: {
+                firstname: 'Client',
+                lastname: 'DKS',
+                phone_number: {
+                    number: phoneNumber,
+                    country: 'CD' // Congo-Kinshasa
+                }
+            }
+        });
+
+        const token = await transaction.generateToken();
         
-        console.log(`[PAYMENT] Initiation ${provider.toUpperCase()} pour ${phoneNumber}`);
+        console.log(`[FEDAPAY] Lien généré pour ${phoneNumber}: ${token.url}`);
         
-        res.json({ success: true, transactionId });
+        // On renvoie l'URL de paiement au Pixel 8 du client
+        res.json({ 
+            success: true, 
+            url: token.url, 
+            transactionId: transaction.id 
+        });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Erreur FedaPay:", error.message);
+        res.status(500).json({ error: "Impossible d'initier le paiement réel." });
     }
 });
 
-// 4. CONFIRMATION ET MISE À JOUR DU STOCK DKS
+// 2. CONFIRMATION ET MISE À JOUR DU STOCK DKS
 app.post('/api/mobile-money/confirm', async (req, res) => {
     try {
         const { transactionId, cartItems, totalAmount, provider } = req.body;
 
-        // Transaction SQLite sécurisée
         await db.run('BEGIN TRANSACTION');
 
-        // Déduction des stocks
         for (const item of cartItems) {
             await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
         }
 
-        //  .Enregistrement de la vente dans l'historique DKS
         await db.run(
             `INSERT INTO orders (id, total, items, status, paymentMethod, createdAt) 
              VALUES (?, ?, ?, ?, ?, ?)`,
@@ -205,7 +169,6 @@ app.post('/api/mobile-money/confirm', async (req, res) => {
         );
 
         await db.run('COMMIT');
-        console.log(`[SUCCESS] Vente enregistrée : ${transactionId}`);
         res.json({ success: true });
     } catch (error) {
         await db.run('ROLLBACK');
@@ -213,19 +176,14 @@ app.post('/api/mobile-money/confirm', async (req, res) => {
     }
 });
 
-
-// 5. HISTORIQUE DES COMMANDES
+// 3. HISTORIQUE DES COMMANDES (Dashboard)
 app.get('/api/orders', async (req, res) => {
     try {
         const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
-        res.json(orders);
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// --- AUTRES ---
-app.get('/api/expenses', async (req, res) => {
-    const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
-    res.json(expenses);
+        res.json(orders || []);
+    } catch (error) {
+        res.status(500).json({ error: "Erreur de chargement des commandes" });
+    }
 });
 
 // --- SERVIR LE FRONTEND ---
