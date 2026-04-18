@@ -45,27 +45,35 @@ const MobileMoneyPayment = ({ onSuccess, onError }) => {
       setPaymentStatus('pending');
       alert(`Paiement initié via ${provider.toUpperCase()}. Validez l'opération sur votre téléphone.`);
 
+      // MODIFICATION À FAIRE DANS MobileMoneyPayment.jsx
       // Simulation de la validation réseau
       setTimeout(async () => {
         try {
-          await apiService.request('/api/mobile-money/confirm', {
+          const response = await apiService.request('/api/mobile-money/confirm', {
             method: 'POST',
             body: JSON.stringify({
               transactionId: data.transactionId,
-              cartItems,
+              cartItems: cartItems,
               totalAmount: totalUSD,
-              provider
+              provider: provider
             }),
           });
 
-          setPaymentStatus('completed');
-          clearCart();
-          if (onSuccess) onSuccess();
+          if (response.success) {
+            setPaymentStatus('completed');
+            clearCart();
+            if (onSuccess) onSuccess();
+          } else {
+            setPaymentStatus('failed');
+            if (onError) onError('Le serveur a refusé la transaction.');
+          }
         } catch (error) {
+          console.error("Erreur de confirmation:", error);
           setPaymentStatus('failed');
-          if (onError) onError('Paiement non validé par le client.');
+          if (onError) onError('Erreur technique lors de la validation.');
         }
       }, 4000);
+
 
     } catch (error) {
       setPaymentStatus('failed');
