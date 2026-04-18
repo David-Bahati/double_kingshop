@@ -8,7 +8,13 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: '*', // Pour le test, '*' autorise tout. Si ça marche, on sécurisera après.
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+        allowedHeaders: ['Content-Type', 'Authorization']
+        }));
+
+
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get('/validation-key.txt', (req, res) => {
@@ -51,9 +57,12 @@ const PI_HEADERS = {
 let db;
 (async () => {
   db = await open({
-    filename: './dks_database.db',
-    driver: sqlite3.Database
-  });
+      // Utilise path.join et __dirname pour un chemin absolu garanti
+        filename: path.join(__dirname, 'dks_database.db'),
+          driver: sqlite3.Database
+          });
+
+
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS products (

@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api';
+const API_BASE_URL = "https://doublekingshop-production-5fdb.up.railway.app";
+
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
