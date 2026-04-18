@@ -13,7 +13,6 @@ const { FedaPay, Transaction } = require('fedapay');
 const app = express();
 
 // --- CONFIGURATION FEDAPAY ---
-// Ces clés doivent être dans l'onglet "Variables" sur Railway
 FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY);
 FedaPay.setEnvironment(process.env.FEDAPAY_MODE || 'sandbox');
 
@@ -72,55 +71,53 @@ async function initDb() {
 
 initDb().catch(err => console.error("❌ Erreur DB:", err));
 
-app.use('/api', (req, res, next) => {
-    if (!db) return res.status(503).json({ error: "Base de données en cours de chargement..." });
-    next();
-});
-
-// --- CONFIGURATION MULTER ---
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const upload = multer({ storage });
-
 // --- ROUTES API ---
 
-// Auth
-app.post('/api/auth/login', async (req, res) => {
-    const { pin } = req.body;
+// 1. PI NETWORK : APPROBATION (Correction pour Pi Browser)
+app.post('/api/pi/approve', async (req, res) => {
     try {
-        const staffMember = await db.get('SELECT * FROM users WHERE pin = ?', [pin]);
-        if (staffMember) {
-            res.json({ success: true, user: { name: staffMember.name, role: staffMember.role, location: staffMember.location } });
-        } else {
-            res.status(401).json({ success: false, error: 'Code PIN incorrect' });
+        const { paymentId } = req.body;
+        console.log(`[PI] Approbation demandée pour : ${paymentId}`);
+        
+        // Ici, on informe le Pi Browser que notre serveur Double King Shop 
+        // reconnaît cette transaction.
+        res.json({ success: true, approved: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 2. PI NETWORK : FINALISATION & STOCK
+app.post('/api/orders/pi', async (req, res) => {
+    try {
+        const { paymentId, txid, amount, items } = req.body;
+        
+        await db.run('BEGIN TRANSACTION');
+        
+        for (const item of items) {
+            await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
         }
-    } catch (error) { res.status(500).json({ error: error.message }); }
+
+        await db.run(
+            `INSERT INTO orders (id, txid, total, items, status, paymentMethod, createdAt) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [paymentId, txid, amount, JSON.stringify(items), 'completed', 'pi_network', new Date().toISOString()]
+        );
+
+        await db.run('COMMIT');
+        console.log(`✅ Vente Pi enregistrée : ${paymentId}`);
+        res.status(201).json({ success: true });
+    } catch (error) {
+        await db.run('ROLLBACK');
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Produits
-app.get('/api/products', async (req, res) => {
-    try {
-        const products = await db.all('SELECT * FROM products ORDER BY id DESC');
-        res.json(products);
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// ==========================================
-//    NOUVELLES ROUTES : PAIEMENTS RÉELS
-// ==========================================
-
-// 1. INITIATION RÉELLE VIA FEDAPAY (Remplace la simulation)
+// 3. FEDAPAY : INITIATION MOBILE MONEY
 app.post('/api/mobile-money/initiate', async (req, res) => {
     try {
         const { phoneNumber, provider, amountUSD } = req.body;
         
-        // Création de la transaction chez FedaPay
         const transaction = await Transaction.create({
             description: `Achat DKS - ${provider}`,
             amount: amountUSD,
@@ -128,36 +125,24 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
             customer: {
                 firstname: 'Client',
                 lastname: 'DKS',
-                phone_number: {
-                    number: phoneNumber,
-                    country: 'CD' // Congo-Kinshasa
-                }
+                phone_number: { number: phoneNumber, country: 'CD' }
             }
         });
 
         const token = await transaction.generateToken();
-        
-        console.log(`[FEDAPAY] Lien généré pour ${phoneNumber}: ${token.url}`);
-        
-        // On renvoie l'URL de paiement au Pixel 8 du client
-        res.json({ 
-            success: true, 
-            url: token.url, 
-            transactionId: transaction.id 
-        });
+        res.json({ success: true, url: token.url, transactionId: transaction.id });
     } catch (error) {
         console.error("Erreur FedaPay:", error.message);
-        res.status(500).json({ error: "Impossible d'initier le paiement réel." });
+        res.status(500).json({ error: "Erreur FedaPay." });
     }
 });
 
-// 2. CONFIRMATION ET MISE À JOUR DU STOCK DKS
+// 4. FEDAPAY : CONFIRMATION & STOCK
 app.post('/api/mobile-money/confirm', async (req, res) => {
     try {
         const { transactionId, cartItems, totalAmount, provider } = req.body;
 
         await db.run('BEGIN TRANSACTION');
-
         for (const item of cartItems) {
             await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
         }
@@ -176,14 +161,19 @@ app.post('/api/mobile-money/confirm', async (req, res) => {
     }
 });
 
-// 3. HISTORIQUE DES COMMANDES (Dashboard)
+// 5. HISTORIQUE & PRODUITS
 app.get('/api/orders', async (req, res) => {
     try {
         const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
         res.json(orders || []);
-    } catch (error) {
-        res.status(500).json({ error: "Erreur de chargement des commandes" });
-    }
+    } catch (error) { res.status(500).json({ error: "Erreur orders" }); }
+});
+
+app.get('/api/products', async (req, res) => {
+    try {
+        const products = await db.all('SELECT * FROM products ORDER BY id DESC');
+        res.json(products);
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // --- SERVIR LE FRONTEND ---
@@ -191,13 +181,11 @@ const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
 app.get('*', (req, res) => {
-    if (req.url.startsWith('/api')) return res.status(404).json({ error: "Route API non trouvée" });
-    res.sendFile(path.join(distPath, 'index.html'), (err) => {
-        if (err) res.status(500).send("Erreur Frontend absent.");
-    });
+    if (req.url.startsWith('/api')) return res.status(404).json({ error: "API 404" });
+    res.sendFile(path.join(distPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 SERVEUR DKS OPÉRATIONNEL SUR PORT ${PORT}`);
+    console.log(`🚀 SERVEUR DKS PRÊT SUR PORT ${PORT}`);
 });
