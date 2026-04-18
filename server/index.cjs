@@ -18,24 +18,26 @@ app.use(cors({
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.get('/validation-key.txt', (req, res)=>{
-      const path = require('path');
-          const fs = require('fs');
-              
-                  // Test 1: Dans le dossier server
-                      const path1 = path.join(__dirname, 'validation-key.txt');
-                        // Test 2: À la racine du projet complet
-                              const path2 = path.join(process.cwd(), 'validation-key.txt');
+    
+    app.get('/validation-key.txt', (req, res) => {
+    const path = require('path');
+    const fs = require('fs');
 
-                                  if (fs.existsSync(path1)) {
-                                          return res.sendFile(path1);
-                                              } else if (fs.existsSync(path2)) {
-                                                      return res.sendFile(path2);
-                                                          } else {
-                                                                  // Si aucun ne marche, on affiche un message d'erreur personnalisé
-                                                                          res.status(404).send("Fichier introuvable sur le serveur. Essayez de le mettre dans le dossier 'server'.");
-                                                                              }
-                                                                              });
+    // On définit les chemins absolus pour être sûr
+    const rootPath = path.resolve(process.cwd(), 'validation-key.txt');
+    const serverPath = path.resolve(__dirname, 'validation-key.txt');
+
+    if (fs.existsSync(rootPath)) {
+        return res.sendFile(rootPath);
+    } else if (fs.existsSync(serverPath)) {
+        return res.sendFile(serverPath);
+    } else {
+        // Si ça ne marche toujours pas, on renvoie une erreur brute pour débugger
+        res.status(404).send("Erreur : Fichier physiquement absent du serveur Railway.");
+    }
+});
+                                                                          
+                                                                            
 
 
 
