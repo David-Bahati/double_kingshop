@@ -24,7 +24,7 @@ app.get('/validation-key.txt', (req, res)=>{
               
                   // Test 1: Dans le dossier server
                       const path1 = path.join(__dirname, 'validation-key.txt');
-                          // Test 2: À la racine du projet complet
+                        // Test 2: À la racine du projet complet
                               const path2 = path.join(process.cwd(), 'validation-key.txt');
 
                                   if (fs.existsSync(path1)) {
@@ -414,7 +414,6 @@ app.get('/api/backup', async (req, res) => {
 });
 
 // Ajoute ceci juste avant 'const PORT = 3001;'
-const path = require('path');
 
 // 1. Sers les fichiers du frontend (dossier dist)
 app.use(express.static(path.join(__dirname, '../dist')));
