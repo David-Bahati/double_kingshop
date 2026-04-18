@@ -40,7 +40,7 @@ class ApiService {
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Une erreur est survenue');
+        throw new Error(data.error || data.message || 'Erreur DKS');
       }
 
       return data;
@@ -50,34 +50,49 @@ class ApiService {
     }
   }
 
-  // --- AUTH ---
+  // --- AUTHENTIFICATION ---
   async login(credentials) {
     const data = await this.request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
     });
-    
-    if (data.success) {
-      this.setToken("session_dks_active"); 
-    }
+    if (data.success) this.setToken("session_dks_active");
     return data;
   }
 
-  // --- PRODUITS ---
-  async getProducts() {
-    return this.request('/api/products');
-  }
-
-  async createProduct(productData) {
-    return this.request('/api/products', {
+  // --- PI NETWORK ---
+  async approvePiPayment(paymentId) {
+    return this.request('/api/pi/approve', {
       method: 'POST',
-      body: JSON.stringify(productData)
+      body: JSON.stringify({ paymentId })
     });
   }
 
-  // --- AUTRES ---
+  async completePiOrder(orderData) {
+    return this.request('/api/orders/pi', {
+      method: 'POST',
+      body: JSON.stringify(orderData)
+    });
+  }
+
+  // --- MOBILE MONEY ---
+  async initiateMobileMoney(paymentData) {
+    return this.request('/api/mobile-money/initiate', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  }
+
+  async confirmMobileMoney(confirmationData) {
+    return this.request('/api/mobile-money/confirm', {
+      method: 'POST',
+      body: JSON.stringify(confirmationData)
+    });
+  }
+
+  // --- PRODUITS ET VENTES ---
+  async getProducts() { return this.request('/api/products'); }
   async getOrders() { return this.request('/api/orders'); }
-  async getUsers() { return this.request('/api/users'); }
 }
 
 export const apiService = new ApiService();

@@ -6,8 +6,8 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
+  // Normalise les rôles venant du backend (ex: 'vendeur' -> 'salesman')
   const normalizeRole = (role) => {
     const r = role?.toLowerCase();
     if (r === 'administrator' || r === 'admin') return 'admin';
@@ -16,41 +16,32 @@ export const AuthProvider = ({ children }) => {
     return r;
   };
 
-  const normalizeUser = (userData) => {
-    if (!userData) return null;
-    return {
-      ...userData,
-      role: normalizeRole(userData.role),
-      originalRole: userData.role
-    };
-  };
-
   useEffect(() => {
     const storedUser = localStorage.getItem('dks_user');
     if (storedUser) {
-      setUser(normalizeUser(JSON.parse(storedUser)));
+      const parsedUser = JSON.parse(storedUser);
+      setUser({
+        ...parsedUser,
+        role: normalizeRole(parsedUser.role)
+      });
     }
     setLoading(false);
   }, []);
 
   const login = async (pin) => {
     try {
-      setError(null);
-      setLoading(true);
-      
       const data = await apiService.login({ pin });
-
       if (data.success) {
-        const normalizedUser = normalizeUser(data.user);
+        const normalizedUser = {
+          ...data.user,
+          role: normalizeRole(data.user.role)
+        };
         setUser(normalizedUser);
         localStorage.setItem('dks_user', JSON.stringify(normalizedUser));
         return data;
       }
     } catch (err) {
-      setError(err.message);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -63,7 +54,6 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
-    error,
     login,
     logout,
     isAdmin: () => user?.role === 'admin',
@@ -80,4 +70,3 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-export default AuthContext;

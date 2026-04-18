@@ -13,7 +13,7 @@ class PiService {
       const checkPi = setInterval(() => {
         if (window.Pi) {
           this.pi = window.Pi;
-          // Note : Passe 'sandbox: false' quand tu seras prêt pour le Mainnet
+          // Note : sandbox: true pour tes tests sur Railway
           this.pi.init({ version: "2.0", sandbox: true }); 
           this.initialized = true;
           clearInterval(checkPi);
@@ -24,10 +24,7 @@ class PiService {
   }
 
   /**
-   * Lance le flux de paiement Pi et met à jour le stock en temps réel
-   * @param {number} amount - Le montant total en Pi
-   * @param {string} memo - Description de l'achat
-   * @param {Array} cartItems - La liste des produits achetés (id, name, quantity)
+   * Lance le flux de paiement Pi et met à jour le stock chez Double King Shop
    */
   async createPayment(amount, memo, cartItems = []) {
     try {
@@ -38,54 +35,48 @@ class PiService {
         memo: memo,
         metadata: { 
           shopName: "Double King Shop",
-          location: "Bunia"
-          // On peut aussi mettre les IDs ici si nécessaire
+          location: "Bunia",
+          itemsCount: cartItems.length
         }
       };
 
       const callbacks = {
-        // 1. Étape d'approbation : Ton serveur dit "OK" à Pi Network
+        // 1. Approbation par ton serveur Railway
         onReadyForServerApproval: async (paymentId) => {
           console.log("Approbation DKS en cours...", paymentId);
-          await apiService.request('/api/pi/approve', {
+          return await apiService.request('/api/pi/approve', {
             method: 'POST',
             body: JSON.stringify({ paymentId })
           });
         },
 
-        // 2. Étape de complétion : L'utilisateur a payé sur la blockchain
+        // 2. Complétion et enregistrement de la commande
         onReadyForServerCompletion: async (paymentId, txid) => {
           console.log("Validation de la vente DKS...", paymentId);
           
-          // CRUCIAL : On envoie cartItems pour que le serveur déduise le stock
-          await apiService.request('/api/pi/complete', {
+          // CORRECTION : On utilise la route /api/orders/pi pour créer la commande et déduire le stock
+          await apiService.request('/api/orders/pi', {
             method: 'POST',
             body: JSON.stringify({ 
               paymentId, 
               txid, 
-              cartItems // Envoi du panier pour mise à jour du stock en temps réel
+              amount, 
+              items: cartItems 
             })
           });
 
-          console.log("✅ Vente réussie et stock mis à jour !");
-          
-          // On attend un peu pour laisser le serveur finir puis on rafraîchit
-          setTimeout(() => {
-            window.location.href = "/dashboard"; // Redirection vers le dashboard pour voir la vente
-          }, 2000);
+          console.log("✅ Vente réussie chez Double King Shop !");
         },
 
-        // 3. Gestion des imprévus
         onCancel: (paymentId) => {
-          console.log("Paiement annulé par l'utilisateur", paymentId);
+          console.log("Paiement annulé", paymentId);
         },
         onError: (error, payment) => {
           console.error("Erreur technique Pi:", error);
-          alert("Erreur lors de la transaction Pi. Veuillez réessayer.");
         }
       };
 
-      // Lancement de la fenêtre de paiement Pi sur le Pixel 8
+      // Ouvre la fenêtre de paiement sur ton Pixel 8
       await this.pi.createPayment(paymentData, callbacks);
 
     } catch (error) {

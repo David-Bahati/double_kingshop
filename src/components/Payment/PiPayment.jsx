@@ -15,9 +15,8 @@ const PiPayment = ({ onSuccess, onError }) => {
         await piService.initialize();
         setPiReady(true);
       } catch (error) {
-        console.error('Pi initialization failed:', error);
-        setPaymentStatus('failed');
-        if (onError) onError('Pi Network non disponible');
+        setPiReady(false);
+        if (onError) onError('Utilisez le navigateur Pi Browser pour payer');
       }
     };
     init();
@@ -28,102 +27,74 @@ const PiPayment = ({ onSuccess, onError }) => {
       setLoading(true);
       setPaymentStatus('initializing');
 
-      // Calcul du montant total à partir du panier
       const totalAmount = getCartTotal();
-      const piRate = CURRENCIES?.PI?.rate || 1;
+      const piRate = CURRENCIES?.PI?.rate || 0.01; // Ajusté selon ton image
       const amountInPi = totalAmount / piRate;
 
-      // On lance le flux de paiement (les callbacks dans piService gèrent l'approbation/complétion)
       await piService.createPayment(
         amountInPi.toFixed(4), 
-        `Commande Double King Shop #${Date.now()}`,
+        `DKS Order #${Date.now()}`,
         cartItems
       );
 
-      // Si le flux se termine sans erreur :
       setPaymentStatus('completed');
       clearCart();
       if (onSuccess) onSuccess();
 
     } catch (error) {
-      console.error('Payment error:', error);
       setPaymentStatus('failed');
-      if (onError) onError(error.message || 'Erreur lors du paiement');
+      if (onError) onError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusMessage = () => {
-    switch (paymentStatus) {
-      case 'initializing': return 'Initialisation du paiement...';
-      case 'pending': return 'En attente de confirmation Pi...';
-      case 'completed': return 'Paiement réussi ! ✅';
-      case 'failed': return 'Paiement échoué ❌';
-      default: return '';
-    }
-  };
-
   if (!piReady) {
     return (
-      <div className="p-4 text-center text-gray-500">
-        Initialisation de Pi Network...
+      <div className="p-8 text-center bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Initialisation Pi Network...</p>
       </div>
     );
   }
 
   const totalAmount = getCartTotal();
-  const piRate = CURRENCIES?.PI?.rate || 1;
+  const piRate = CURRENCIES?.PI?.rate || 0.01;
   const amountInPi = (totalAmount / piRate).toFixed(4);
 
   return (
-    <div className="bg-white rounded-lg p-6 shadow-lg border border-gray-100">
-      <h3 className="text-xl font-bold mb-4 flex items-center">
-        <span className="text-2xl mr-2 text-yellow-600 font-serif">Π</span>
-        Paiement Pi Network
-      </h3>
-
-      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-gray-600 mb-2 font-medium">Montant à payer :</p>
-        <p className="text-3xl font-bold text-blue-700">
-          {amountInPi} Π
-        </p>
-        <p className="text-sm text-blue-500 italic mt-1">
-          Équivalent à {totalAmount.toFixed(2)} $ USD
-        </p>
+    <div className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100">
+      <div className="flex justify-between items-center mb-8">
+        <h3 className="text-xl font-black text-gray-900 italic uppercase tracking-tighter">Paiement Pi</h3>
+        <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">Mainnet Ready</span>
       </div>
 
-      {paymentStatus && (
-        <div className={`mb-4 p-3 rounded-lg text-sm text-center font-medium ${
-          paymentStatus === 'completed' ? 'bg-green-100 text-green-800' :
-          paymentStatus === 'failed' ? 'bg-red-100 text-red-800' :
-          'bg-blue-100 text-blue-800'
-        }`}>
-          {getStatusMessage()}
+      <div className="mb-8 p-6 bg-slate-900 rounded-3xl text-center shadow-inner">
+        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Montant de la commande</p>
+        <p className="text-4xl font-black text-yellow-500 mb-1">{amountInPi} Π</p>
+        <p className="text-xs text-gray-400 font-bold italic">≈ {totalAmount.toFixed(2)} $ USD</p>
+      </div>
+
+      {paymentStatus && paymentStatus !== 'completed' && (
+        <div className="mb-6 p-4 bg-blue-50 rounded-2xl text-[11px] text-blue-700 font-black uppercase text-center animate-pulse">
+           {paymentStatus === 'initializing' ? '⏳ Vérification...' : 'En attente de confirmation...'}
         </div>
       )}
 
       <button
         onClick={handlePayment}
         disabled={loading || paymentStatus === 'completed'}
-        className={`w-full py-4 px-4 rounded-xl font-bold text-lg transition-all transform active:scale-95 ${
+        className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-xl ${
           loading || paymentStatus === 'completed'
-            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md'
+            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            : 'bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700'
         }`}
       >
-        {loading ? (
-          <span className="flex items-center justify-center">
-             Traitement...
-          </span>
-        ) : (
-          'Confirmer et Payer'
-        )}
+        {loading ? 'Traitement...' : 'Confirmer et Payer'}
       </button>
 
-      <div className="mt-6 flex flex-col items-center opacity-60">
-        <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Sécurité Double King Shop</p>
-        <p className="text-[10px] text-gray-500">Transaction sécurisée par la Blockchain Pi</p>
+      <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+        <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">Double King Shop • Bunia Digital</p>
       </div>
     </div>
   );
