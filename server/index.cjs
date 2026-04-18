@@ -416,12 +416,28 @@ app.get('/api/backup', async (req, res) => {
 // Ajoute ceci juste avant 'const PORT = 3001;'
 
 // 1. Sers les fichiers du frontend (dossier dist)
-app.use(express.static(path.join(__dirname, '../dist')));
 
-// 2. Pour toutes les routes non-API, renvoie l'index.html
+// Chemin vers le dossier dist
+const distPath = path.join(__dirname, '../dist');
+
+console.log('📂 Chemin du dossier dist:', distPath); // Pour le debug
+
+// 1. Sers les fichiers statiques
+app.use(express.static(distPath));
+
+// 2. Route pour attraper toutes les requêtes (SPA)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-  });
+    const indexPath = path.join(distPath, 'index.html');
+        console.log('📄 Tentative d\'envoi de:', indexPath);
+            
+                res.sendFile(indexPath, (err) => {
+                        if (err) {
+                                    console.error('❌ ERREUR: Impossible de trouver index.html');
+                                                console.error('Détails:', err);
+                                                            res.status(500).send('Erreur: Le frontend n\'a pas été buildé correctement. Vérifie les logs.');
+                                                                    }
+                                                                        });
+                                                                        });
 
   // ... app.listen(...)
 const PORT = process.env.PORT || 3001;
