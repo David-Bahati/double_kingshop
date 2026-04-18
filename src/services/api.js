@@ -47,7 +47,7 @@ class ApiService {
 
   // Auth
   async login(credentials) {
-    const data = await this.request('/auth/login', {
+    const data = await this.request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
     });
@@ -58,7 +58,7 @@ class ApiService {
   }
 
   async register(userData) {
-    return this.request('/auth/register', {
+    return this.request('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData)
     });
