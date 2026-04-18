@@ -1,4 +1,3 @@
-// On laisse vide pour utiliser le même domaine que le frontend (plus fiable sur Railway)
 const API_BASE_URL = ""; 
 
 class ApiService {
@@ -17,7 +16,6 @@ class ApiService {
   }
 
   async request(endpoint, options = {}) {
-    // On s'assure que l'URL commence par le bon domaine/préfixe
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
@@ -32,10 +30,9 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      
-      // On vérifie si la réponse est du JSON avant de parser
       const contentType = response.headers.get("content-type");
       let data;
+      
       if (contentType && contentType.includes("application/json")) {
           data = await response.json();
       } else {
@@ -55,26 +52,20 @@ class ApiService {
 
   // --- AUTH ---
   async login(credentials) {
-    // Le serveur attend un objet { pin: "0000" }
-    // On s'assure d'appeler /api/auth/login
     const data = await this.request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
     });
-    if (data.success && data.user) {
-      // Ton serveur ne renvoie pas de "token" mais un objet "user"
-      this.setToken("dummy-session-token"); 
+    
+    if (data.success) {
+      this.setToken("session_dks_active"); 
     }
     return data;
   }
 
-  // --- PRODUITS (AJOUT DU PRÉFIXE /api) ---
+  // --- PRODUITS ---
   async getProducts() {
     return this.request('/api/products');
-  }
-
-  async getProduct(id) {
-    return this.request(`/api/products/${id}`);
   }
 
   async createProduct(productData) {
@@ -84,15 +75,9 @@ class ApiService {
     });
   }
 
-  // --- COMMANDES (AJOUT DU PRÉFIXE /api) ---
-  async getOrders() {
-    return this.request('/api/orders');
-  }
-
-  // --- UTILISATEURS (AJOUT DU PRÉFIXE /api) ---
-  async getUsers() {
-    return this.request('/api/users');
-  }
+  // --- AUTRES ---
+  async getOrders() { return this.request('/api/orders'); }
+  async getUsers() { return this.request('/api/users'); }
 }
 
 export const apiService = new ApiService();

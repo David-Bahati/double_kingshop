@@ -9,16 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const normalizeRole = (role) => {
-    switch (role) {
-      case 'administrator':
-        return 'admin';
-      case 'vendeur':
-        return 'salesman';
-      case 'caissier':
-        return 'cashier';
-      default:
-        return role;
-    }
+    const r = role?.toLowerCase();
+    if (r === 'administrator' || r === 'admin') return 'admin';
+    if (r === 'vendeur' || r === 'salesman') return 'salesman';
+    if (r === 'caissier' || r === 'cashier') return 'cashier';
+    return r;
   };
 
   const normalizeUser = (userData) => {
@@ -31,40 +26,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    checkAuth();
+    const storedUser = localStorage.getItem('dks_user');
+    if (storedUser) {
+      setUser(normalizeUser(JSON.parse(storedUser)));
+    }
+    setLoading(false);
   }, []);
 
-  // Vérifie si un membre du staff est déjà connecté au démarrage
-  const checkAuth = () => {
-    try {
-      const storedUser = localStorage.getItem('dks_user');
-      if (storedUser) {
-        setUser(normalizeUser(JSON.parse(storedUser)));
-      }
-    } catch (err) {
-      console.error('Erreur de lecture session:', err);
-      localStorage.removeItem('dks_user');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // NOUVELLE FONCTION LOGIN (Par Code PIN)
   const login = async (pin) => {
     try {
       setError(null);
       setLoading(true);
       
-      const data = await apiService.request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ pin })
-      });
+      const data = await apiService.login({ pin });
 
-      const normalizedUser = normalizeUser(data.user);
-      setUser(normalizedUser);
-      // On utilise 'dks_user' pour être cohérent avec ton Dashboard
-      localStorage.setItem('dks_user', JSON.stringify(normalizedUser));
-      return { ...data, user: normalizedUser };
+      if (data.success) {
+        const normalizedUser = normalizeUser(data.user);
+        setUser(normalizedUser);
+        localStorage.setItem('dks_user', JSON.stringify(normalizedUser));
+        return data;
+      }
     } catch (err) {
       setError(err.message);
       throw err;
@@ -76,13 +57,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('dks_user');
-    // Pas besoin d'appel API pour le logout ici car on travaille en mémoire locale
+    localStorage.removeItem('token');
   };
-
-  // Helpers pour les rôles (Vérifie les chaînes exactes du backend)
-  const isAdmin = () => user?.role === 'administrator';
-  const isCashier = () => user?.role === 'caissier';
-  const isSalesman = () => user?.role === 'vendeur';
 
   const value = {
     user,
@@ -90,9 +66,9 @@ export const AuthProvider = ({ children }) => {
     error,
     login,
     logout,
-    isAdmin,
-    isCashier,
-    isSalesman,
+    isAdmin: () => user?.role === 'admin',
+    isCashier: () => user?.role === 'cashier',
+    isSalesman: () => user?.role === 'salesman',
     isAuthenticated: !!user
   };
 
@@ -103,12 +79,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
-
+export const useAuth = () => useContext(AuthContext);
 export default AuthContext;
