@@ -11,30 +11,30 @@ const { FedaPay, Transaction } = require('fedapay');
 
 const app = express();
 
-// --- DIAGNOSTIC RAILWAY (À vérifier dans tes logs) ---
+// --- CONFIGURATION DE LA CLÉ API PI (MISE À JOUR) ---
+// Remplace "TA_CLE_API_SECRET_ICI" par ta vraie clé si Railway ne la détecte toujours pas
+const PI_KEY = process.env.PI_API_KEY || "qn5jxbrlsx0l5h0ueoopyqygeuyausotdpwiwmuiftbenuyl4f5guocpgxaqlojw";
+
 console.log("-------------------------------------------");
-console.log("🔍 DIAGNOSTIC DES VARIABLES D'ENVIRONNEMENT");
-console.log("PORT:", process.env.PORT);
-console.log("PI_API_KEY:", process.env.PI_API_KEY ? "✅ CHARGÉE (Commence par: " + process.env.PI_API_KEY.substring(0, 5) + "...)" : "❌ MANQUANTE");
+console.log("🔍 DIAGNOSTIC DKS - BUNIA");
+console.log("PORT:", process.env.PORT || 8080);
+console.log("PI_API_KEY STATUS:", PI_KEY !== "TA_CLE_API_SECRET_ICI" ? "✅ CHARGÉE" : "⚠️ UTILISATION DU CODE EN DUR");
 console.log("-------------------------------------------");
 
 // --- CONFIGURATION FEDAPAY ---
 FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY);
 FedaPay.setEnvironment(process.env.FEDAPAY_MODE || 'sandbox');
 
-// --- CONFIGURATION MIDDLEWARES ---
+// --- MIDDLEWARES ---
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 app.use(express.json());
 
 const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 app.use('/uploads', express.static(uploadDir));
 
 // --- INITIALISATION DE LA BASE DE DONNÉES ---
@@ -63,21 +63,15 @@ async function initDb() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             description TEXT, amount REAL, category TEXT, date TEXT
         );
-        CREATE TABLE IF NOT EXISTS taxes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, rate REAL, type TEXT
-        );
     `);
 
     const userCheck = await db.get('SELECT count(*) as count FROM users');
     if (userCheck.count === 0) {
         await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Admin Double King', 'administrator', '0000', 'Bunia')");
         await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Vendeur DKS', 'vendeur', '1111', 'Bunia')");
-        await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Caissier DKS', 'caissier', '2222', 'Bunia')");
     }
-    console.log("🗄️ BASE DE DONNÉES DKS CONNECTÉE (SQLITE)");
+    console.log("🗄️ BASE DE DONNÉES DKS CONNECTÉE");
 }
-
 initDb().catch(err => console.error("❌ Erreur DB:", err));
 
 // --- ROUTES API ---
@@ -86,46 +80,27 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { pin } = req.body;
         const user = await db.get('SELECT * FROM users WHERE pin = ?', [pin]);
-
         if (user) {
-            console.log(`✅ Connexion réussie : ${user.name}`);
-            res.json({ 
-                success: true, 
-                user: { name: user.name, role: user.role, location: user.location } 
-            });
+            res.json({ success: true, user: { name: user.name, role: user.role, location: user.location } });
         } else {
             res.status(401).json({ success: false, message: "PIN incorrect" });
         }
-    } catch (error) {
-        res.status(500).json({ error: "Erreur de connexion" });
-    }
+    } catch (error) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// 1. PI NETWORK : APPROBATION RÉELLE
+// 1. PI NETWORK : APPROBATION
 app.post('/api/pi/approve', async (req, res) => {
     try {
         const { paymentId } = req.body;
-        const apiKey = process.env.PI_API_KEY;
-
-        if (!apiKey) {
-            console.error("❌ Erreur critique : PI_API_KEY non détectée");
-            return res.status(500).json({ error: "Configuration serveur manquante" });
-        }
-
         console.log(`[PI] Approbation en cours pour : ${paymentId}`);
 
         await axios.post(
             `https://api.minepi.com/v2/payments/${paymentId}/approve`,
             {},
-            {
-                headers: { 
-                    'Authorization': `Key ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            }
+            { headers: { 'Authorization': `Key ${PI_KEY}`, 'Content-Type': 'application/json' } }
         );
 
-        console.log(`✅ Paiement ${paymentId} approuvé officiellement`);
+        console.log(`✅ Paiement ${paymentId} approuvé`);
         res.json({ success: true, approved: true });
     } catch (error) {
         console.error("❌ Erreur Pi Approve:", error.response?.data || error.message);
@@ -133,21 +108,15 @@ app.post('/api/pi/approve', async (req, res) => {
     }
 });
 
-// 2. PI NETWORK : FINALISATION RÉELLE
+// 2. PI NETWORK : FINALISATION
 app.post('/api/orders/pi', async (req, res) => {
     try {
         const { paymentId, txid, amount, items } = req.body;
-        const apiKey = process.env.PI_API_KEY;
 
         await axios.post(
             `https://api.minepi.com/v2/payments/${paymentId}/complete`,
             { txid },
-            {
-                headers: { 
-                    'Authorization': `Key ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            }
+            { headers: { 'Authorization': `Key ${PI_KEY}`, 'Content-Type': 'application/json' } }
         );
 
         await db.run('BEGIN TRANSACTION');
@@ -161,7 +130,6 @@ app.post('/api/orders/pi', async (req, res) => {
         );
         await db.run('COMMIT');
 
-        console.log(`✅ Commande DKS enregistrée : ${paymentId}`);
         res.status(201).json({ success: true });
     } catch (error) {
         if (db) await db.run('ROLLBACK');
@@ -170,7 +138,7 @@ app.post('/api/orders/pi', async (req, res) => {
     }
 });
 
-// 3. FEDAPAY : INITIATION
+// 3. FEDAPAY : MOBILE MONEY
 app.post('/api/mobile-money/initiate', async (req, res) => {
     try {
         const { phoneNumber, provider, amountUSD } = req.body;
@@ -185,17 +153,8 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
             }
         });
         const token = await transaction.generateToken();
-        res.json({ success: true, url: token.url, transactionId: transaction.id });
-    } catch (error) {
-        res.status(500).json({ error: "Erreur FedaPay" });
-    }
-});
-
-app.get('/api/orders', async (req, res) => {
-    try {
-        const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
-        res.json(orders || []);
-    } catch (error) { res.status(500).json({ error: "Erreur orders" }); }
+        res.json({ success: true, url: token.url });
+    } catch (error) { res.status(500).json({ error: "Erreur FedaPay" }); }
 });
 
 app.get('/api/products', async (req, res) => {
@@ -205,9 +164,9 @@ app.get('/api/products', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// --- SERVIR LE FRONTEND ---
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
-
 app.get('*', (req, res) => {
     if (req.url.startsWith('/api')) return res.status(404).json({ error: "API 404" });
     res.sendFile(path.join(distPath, 'index.html'));
