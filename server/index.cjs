@@ -171,6 +171,20 @@ app.get('*', (req, res) => {
     if (req.url.startsWith('/api')) return res.status(404).json({ error: "API 404" });
     res.sendFile(path.join(distPath, 'index.html'));
 });
+// --- AJOUT : RÉCUPÉRER LES COMMANDES POUR L'ADMIN ---
+app.get('/api/orders', async (req, res) => {
+    try {
+        // On récupère toutes les commandes triées par la plus récente
+        const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
+        
+        // On renvoie les données
+        res.json(orders);
+    } catch (error) {
+        console.error("❌ Erreur lors de la récupération des commandes:", error);
+        res.status(500).json({ error: "Impossible de charger les commandes" });
+    }
+});
+
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {

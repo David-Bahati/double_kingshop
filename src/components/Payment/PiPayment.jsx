@@ -49,11 +49,19 @@ const PiPayment = ({ onSuccess, onError }) => {
         cartItems,
         {
           onSuccess: (result) => {
-            setPaymentStatus('completed');
-            clearCart();
-            if (onSuccess) onSuccess(result);
-            setLoading(false);
-          },
+  setPaymentStatus('completed');
+  clearCart();
+  
+  // ✅ AJOUTE CECI : Pour informer l'utilisateur et rafraîchir
+  alert("Paiement réussi ! Votre commande est en cours de préparation.");
+  
+  // Redirige vers le tableau de bord ou l'accueil
+  window.location.href = "/admin/dashboard"; 
+  
+  if (onSuccess) onSuccess(result);
+  setLoading(false);
+},
+
           onCancel: () => {
             setPaymentStatus(null);
             setLoading(false);
