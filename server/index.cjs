@@ -11,6 +11,13 @@ const { FedaPay, Transaction } = require('fedapay');
 
 const app = express();
 
+// --- DIAGNOSTIC RAILWAY (À vérifier dans tes logs) ---
+console.log("-------------------------------------------");
+console.log("🔍 DIAGNOSTIC DES VARIABLES D'ENVIRONNEMENT");
+console.log("PORT:", process.env.PORT);
+console.log("PI_API_KEY:", process.env.PI_API_KEY ? "✅ CHARGÉE (Commence par: " + process.env.PI_API_KEY.substring(0, 5) + "...)" : "❌ MANQUANTE");
+console.log("-------------------------------------------");
+
 // --- CONFIGURATION FEDAPAY ---
 FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY);
 FedaPay.setEnvironment(process.env.FEDAPAY_MODE || 'sandbox');
@@ -68,9 +75,7 @@ async function initDb() {
         await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Vendeur DKS', 'vendeur', '1111', 'Bunia')");
         await db.run("INSERT INTO users (name, role, pin, location) VALUES ('Caissier DKS', 'caissier', '2222', 'Bunia')");
     }
-    console.log("-------------------------------------------");
     console.log("🗄️ BASE DE DONNÉES DKS CONNECTÉE (SQLITE)");
-    console.log("-------------------------------------------");
 }
 
 initDb().catch(err => console.error("❌ Erreur DB:", err));
@@ -96,48 +101,50 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 1. PI NETWORK : APPROBATION RÉELLE (CORRIGÉE)
+// 1. PI NETWORK : APPROBATION RÉELLE
 app.post('/api/pi/approve', async (req, res) => {
     try {
         const { paymentId } = req.body;
-        console.log(`[PI] Tentative d'approbation : ${paymentId}`);
+        const apiKey = process.env.PI_API_KEY;
 
-        if (!process.env.PI_API_KEY) {
-            throw new Error("Clé API Pi manquante dans les variables Railway");
+        if (!apiKey) {
+            console.error("❌ Erreur critique : PI_API_KEY non détectée");
+            return res.status(500).json({ error: "Configuration serveur manquante" });
         }
 
-        // Appel à l'API Pi pour approuver le paiement
+        console.log(`[PI] Approbation en cours pour : ${paymentId}`);
+
         await axios.post(
             `https://api.minepi.com/v2/payments/${paymentId}/approve`,
             {},
             {
                 headers: { 
-                    'Authorization': `Key ${process.env.PI_API_KEY}`,
+                    'Authorization': `Key ${apiKey}`,
                     'Content-Type': 'application/json'
                 }
             }
         );
 
-        console.log(`✅ Paiement ${paymentId} approuvé officiellement par DKS`);
+        console.log(`✅ Paiement ${paymentId} approuvé officiellement`);
         res.json({ success: true, approved: true });
     } catch (error) {
         console.error("❌ Erreur Pi Approve:", error.response?.data || error.message);
-        res.status(500).json({ error: "Impossible d'approuver le paiement sur Pi Network" });
+        res.status(500).json({ error: "Échec de l'approbation Pi" });
     }
 });
 
-// 2. PI NETWORK : FINALISATION RÉELLE (CORRIGÉE)
+// 2. PI NETWORK : FINALISATION RÉELLE
 app.post('/api/orders/pi', async (req, res) => {
     try {
         const { paymentId, txid, amount, items } = req.body;
+        const apiKey = process.env.PI_API_KEY;
 
-        // Appel à l'API Pi pour confirmer la complétion
         await axios.post(
             `https://api.minepi.com/v2/payments/${paymentId}/complete`,
             { txid },
             {
                 headers: { 
-                    'Authorization': `Key ${process.env.PI_API_KEY}`,
+                    'Authorization': `Key ${apiKey}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -154,12 +161,12 @@ app.post('/api/orders/pi', async (req, res) => {
         );
         await db.run('COMMIT');
 
-        console.log(`✅ Vente terminée pour le paiement : ${paymentId}`);
+        console.log(`✅ Commande DKS enregistrée : ${paymentId}`);
         res.status(201).json({ success: true });
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (db) await db.run('ROLLBACK');
         console.error("❌ Erreur Pi Complete:", error.response?.data || error.message);
-        res.status(500).json({ error: "Échec de la validation finale du paiement" });
+        res.status(500).json({ error: "Erreur lors de la validation finale" });
     }
 });
 
