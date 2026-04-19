@@ -206,20 +206,22 @@ const Home = () => {
       </main>
 
       {/* --- ASSISTANT IA FLOTTANT --- */}
-      <div className="fixed bottom-8 right-8 z-[100]">
-        <button 
-          onClick={() => window.open('https://bienvenuechezdou2845.pinet.com', '_blank')}
-          className="group relative flex items-center gap-3 bg-slate-900 text-white p-2 pr-6 rounded-full shadow-2xl hover:scale-105 transition-all active:scale-95 border border-white/10"
-        >
-          <div className="bg-blue-600 p-3 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
-            <Sparkles size={20} className="text-yellow-300" />
-          </div>
-          <div className="flex flex-col items-start text-left">
-            <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">En ligne</span>
-            <span className="text-xs font-bold uppercase tracking-widest">Assistant IA</span>
-          </div>
-        </button>
+{!isCartOpen && (
+  <div className="fixed bottom-8 right-8 z-[100]">
+    <button 
+      onClick={() => window.open('https://bienvenuechezdou2845.pinet.com', '_blank')}
+      className="group relative flex items-center gap-3 bg-slate-900 text-white p-2 pr-6 rounded-full shadow-2xl hover:scale-105 transition-all active:scale-95 border border-white/10"
+    >
+      <div className="bg-blue-600 p-3 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
+        <Sparkles size={20} className="text-yellow-300" />
       </div>
+      <div className="flex flex-col items-start text-left">
+        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">En ligne</span>
+        <span className="text-xs font-bold uppercase tracking-widest">Assistant IA</span>
+      </div>
+    </button>
+  </div>
+)}
 
     </div>
   );
