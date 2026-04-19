@@ -7,7 +7,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Normalise les rôles venant du backend (ex: 'vendeur' -> 'salesman')
   const normalizeRole = (role) => {
     const r = role?.toLowerCase();
     if (r === 'administrator' || r === 'admin') return 'admin';
@@ -28,9 +27,23 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  // Fonction vide pour gérer les paiements incomplets demandée par Pi
+  const onIncompletePaymentFound = (payment) => {
+    console.log("Paiement incomplet trouvé :", payment);
+  };
+
   const login = async (pin) => {
     try {
+      // 1. AUTHENTIFICATION PI NETWORK (AJOUT DU SCOPE PAYMENTS)
+      // C'est cette ligne qui corrige l'erreur de scope dans Double King Shop
+      if (window.Pi) {
+        await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
+        console.log("✅ Pi Scope 'payments' accordé");
+      }
+
+      // 2. APPEL AU BACKEND RAILWAY
       const data = await apiService.login({ pin });
+      
       if (data.success) {
         const normalizedUser = {
           ...data.user,
@@ -41,6 +54,7 @@ export const AuthProvider = ({ children }) => {
         return data;
       }
     } catch (err) {
+      console.error("Erreur Login/Pi:", err);
       throw err;
     }
   };
