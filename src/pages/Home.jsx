@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+const [isAiOpen, setIsAiOpen] = useState(false);
+
 import { Link } from 'react-router-dom';
 import { 
   ShoppingCart, 
@@ -205,23 +207,42 @@ const Home = () => {
         )}
       </main>
 
-      {/* --- ASSISTANT IA FLOTTANT --- */}
-{!isCartOpen && (
-  <div className="fixed bottom-8 right-8 z-[100]">
-    <button 
-      onClick={() => window.open('https://bienvenuechezdou2845.pinet.com', '_blank')}
-      className="group relative flex items-center gap-3 bg-slate-900 text-white p-2 pr-6 rounded-full shadow-2xl hover:scale-105 transition-all active:scale-95 border border-white/10"
-    >
-      <div className="bg-blue-600 p-3 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
-        <Sparkles size={20} className="text-yellow-300" />
+     {/* --- ASSISTANT IA FLOTTANT --- */}
+<div className="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-4">
+  
+  {/* Fenêtre de l'IA (s'affiche seulement si isAiOpen est vrai) */}
+  {isAiOpen && (
+    <div className="w-[350px] h-[500px] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300 origin-bottom-right">
+      <div className="bg-slate-900 p-4 flex justify-between items-center">
+        <span className="text-white font-bold text-sm">Assistant Double King</span>
+        <button onClick={() => setIsAiOpen(false)} className="text-white hover:bg-white/10 rounded-full p-1">
+          <X size={20} />
+        </button>
       </div>
-      <div className="flex flex-col items-start text-left">
-        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">En ligne</span>
-        <span className="text-xs font-bold uppercase tracking-widest">Assistant IA</span>
-      </div>
-    </button>
-  </div>
-)}
+      <iframe 
+        src="https://bienvenuechezdou2845.pinet.com" 
+        className="flex-1 w-full border-none"
+        title="IA Assistant"
+      />
+    </div>
+  )}
+
+  {/* Bouton pour ouvrir/fermer */}
+  <button 
+    onClick={() => setIsAiOpen(!isAiOpen)}
+    className="group relative flex items-center gap-3 bg-slate-900 text-white p-2 pr-6 rounded-full shadow-2xl hover:scale-105 transition-all active:scale-95 border border-white/10"
+  >
+    <div className="bg-blue-600 p-3 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
+      {isAiOpen ? <X size={20} /> : <Sparkles size={20} className="text-yellow-300" />}
+    </div>
+    <div className="flex flex-col items-start text-left">
+      <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">
+        {isAiOpen ? "Fermer" : "En ligne"}
+      </span>
+      <span className="text-xs font-bold uppercase tracking-widest">Assistant IA</span>
+    </div>
+  </button>
+</div>
 
     </div>
   );
