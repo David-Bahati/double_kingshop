@@ -9,26 +9,26 @@ const PiPayment = ({ onSuccess, onError }) => {
   const [paymentStatus, setPaymentStatus] = useState(null);
   const { getCartTotal, clearCart, cartItems } = useCart();
 
+  // --- CONFIGURATION GCV ---
+  const GCV_VALUE = 314159; 
+
   useEffect(() => {
     const init = async () => {
       try {
         await piService.initialize();
         
-        // --- MISE À JOUR POUR LES CLIENTS ---
-        // On authentifie le client immédiatement pour obtenir le "payments scope"
-        // sans passer par la page de login du staff.
         if (window.Pi) {
           await window.Pi.authenticate(['username', 'payments'], (payment) => {
             console.log("Paiement incomplet (Client) :", payment);
           });
-          console.log("✅ Client Double King Shop authentifié avec succès");
+          console.log("✅ Client Double King Shop authentifié");
         }
         
         setPiReady(true);
       } catch (error) {
         setPiReady(false);
-        console.error("Erreur Initialisation Client:", error);
-        if (onError) onError('Veuillez utiliser le Pi Browser pour effectuer vos achats.');
+        console.error("Erreur Initialisation:", error);
+        if (onError) onError('Veuillez utiliser le Pi Browser.');
       }
     };
     init();
@@ -39,14 +39,13 @@ const PiPayment = ({ onSuccess, onError }) => {
       setLoading(true);
       setPaymentStatus('initializing');
 
-      const totalAmount = getCartTotal();
-      const piRate = CURRENCIES?.PI?.rate || 0.01;
-      const amountInPi = totalAmount / piRate;
+      const totalAmountUSD = getCartTotal();
+      // Calcul GCV : Montant en USD divisé par 314,159
+      const amountInPi = (totalAmountUSD / GCV_VALUE).toFixed(8);
 
-      // Appel au service avec les callbacks pour gérer l'UI
       await piService.createPayment(
-        amountInPi.toFixed(4), 
-        `DKS Order #${Date.now()}`,
+        amountInPi, 
+        `DKS Order #${Date.now()} (GCV)`,
         cartItems,
         {
           onSuccess: (result) => {
@@ -70,7 +69,7 @@ const PiPayment = ({ onSuccess, onError }) => {
     } catch (error) {
       setLoading(false);
       setPaymentStatus('failed');
-      console.error('Erreur Paiement Client:', error);
+      console.error('Erreur Paiement:', error);
       if (onError) onError(error.message);
     }
   };
@@ -84,21 +83,21 @@ const PiPayment = ({ onSuccess, onError }) => {
     );
   }
 
-  const totalAmount = getCartTotal();
-  const piRate = CURRENCIES?.PI?.rate || 0.01;
-  const amountInPi = (totalAmount / piRate).toFixed(4);
+  const totalAmountUSD = getCartTotal();
+  const amountInPi = (totalAmountUSD / GCV_VALUE).toFixed(8);
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100">
       <div className="flex justify-between items-center mb-8">
-        <h3 className="text-xl font-black text-gray-900 italic uppercase tracking-tighter">Paiement Pi</h3>
+        <h3 className="text-xl font-black text-gray-900 italic uppercase tracking-tighter">Paiement Pi (GCV)</h3>
         <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">Mainnet Ready</span>
       </div>
 
       <div className="mb-8 p-6 bg-slate-900 rounded-3xl text-center shadow-inner">
-        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Montant de la commande</p>
-        <p className="text-4xl font-black text-yellow-500 mb-1">{amountInPi} Π</p>
-        <p className="text-xs text-gray-400 font-bold italic">≈ {totalAmount.toFixed(2)} $ USD</p>
+        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Montant au taux GCV</p>
+        {/* Affichage avec 8 décimales pour la précision GCV */}
+        <p className="text-3xl font-black text-yellow-500 mb-1">{amountInPi} Π</p>
+        <p className="text-xs text-gray-400 font-bold italic">≈ {totalAmountUSD.toFixed(2)} $ USD</p>
       </div>
 
       {paymentStatus && paymentStatus !== 'completed' && (
@@ -120,7 +119,7 @@ const PiPayment = ({ onSuccess, onError }) => {
       </button>
 
       <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-        <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">Double King Shop • Bunia Digital</p>
+        <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">Double King Shop • GCV Consensus</p>
       </div>
     </div>
   );

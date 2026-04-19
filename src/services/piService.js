@@ -13,7 +13,7 @@ class PiService {
       const checkPi = setInterval(() => {
         if (window.Pi) {
           this.pi = window.Pi;
-          // Note : sandbox: false si tu passes en production réelle sur le Mainnet
+          // Note : sandbox: true pour tes tests actuels
           this.pi.init({ version: "2.0", sandbox: true }); 
           this.initialized = true;
           clearInterval(checkPi);
@@ -30,15 +30,20 @@ class PiService {
     try {
       await this.initialize();
 
+      // --- CORRECTION POUR GCV ---
+      // On s'assure que le montant est passé proprement au SDK
       const paymentData = {
-        amount: parseFloat(amount),
+        amount: Number(amount), // Utilisation de Number() au lieu de parseFloat
         memo: memo,
         metadata: { 
           shopName: "Double King Shop",
           location: "Bunia",
-          itemsCount: cartItems.length
+          itemsCount: cartItems.length,
+          conversionType: "GCV_314159"
         }
       };
+
+      console.log(`[DKS] Tentative de paiement : ${amount} Π`);
 
       const callbacks = {
         onReadyForServerApproval: async (paymentId) => {
@@ -64,7 +69,6 @@ class PiService {
 
           console.log("✅ Vente réussie chez Double King Shop !");
           
-          // CRITIQUE : On prévient l'interface (PiPayment.js) que c'est fini
           if (UI_CALLBACKS.onSuccess) UI_CALLBACKS.onSuccess(result);
         },
 
