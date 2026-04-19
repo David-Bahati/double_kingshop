@@ -7,7 +7,6 @@ const path = require('path');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const fs = require('fs');
-// IMPORTATION FEDAPAY
 const { FedaPay, Transaction } = require('fedapay');
 
 const app = express();
@@ -25,7 +24,6 @@ app.use(cors({
 
 app.use(express.json());
 
-// Création du dossier uploads s'il n'existe pas
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)){
     fs.mkdirSync(uploadDir);
@@ -79,7 +77,6 @@ initDb().catch(err => console.error("❌ Erreur DB:", err));
 
 // --- ROUTES API ---
 
-// 0. AUTHENTIFICATION (LOGIN) - Correction de l'erreur 404
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { pin } = req.body;
@@ -99,21 +96,53 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 1. PI NETWORK : APPROBATION
+// 1. PI NETWORK : APPROBATION RÉELLE (CORRIGÉE)
 app.post('/api/pi/approve', async (req, res) => {
     try {
         const { paymentId } = req.body;
-        console.log(`[PI] Approbation : ${paymentId}`);
+        console.log(`[PI] Tentative d'approbation : ${paymentId}`);
+
+        if (!process.env.PI_API_KEY) {
+            throw new Error("Clé API Pi manquante dans les variables Railway");
+        }
+
+        // Appel à l'API Pi pour approuver le paiement
+        await axios.post(
+            `https://api.minepi.com/v2/payments/${paymentId}/approve`,
+            {},
+            {
+                headers: { 
+                    'Authorization': `Key ${process.env.PI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log(`✅ Paiement ${paymentId} approuvé officiellement par DKS`);
         res.json({ success: true, approved: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("❌ Erreur Pi Approve:", error.response?.data || error.message);
+        res.status(500).json({ error: "Impossible d'approuver le paiement sur Pi Network" });
     }
 });
 
-// 2. PI NETWORK : FINALISATION
+// 2. PI NETWORK : FINALISATION RÉELLE (CORRIGÉE)
 app.post('/api/orders/pi', async (req, res) => {
     try {
         const { paymentId, txid, amount, items } = req.body;
+
+        // Appel à l'API Pi pour confirmer la complétion
+        await axios.post(
+            `https://api.minepi.com/v2/payments/${paymentId}/complete`,
+            { txid },
+            {
+                headers: { 
+                    'Authorization': `Key ${process.env.PI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
         await db.run('BEGIN TRANSACTION');
         for (const item of items) {
             await db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
@@ -124,10 +153,13 @@ app.post('/api/orders/pi', async (req, res) => {
             [paymentId, txid, amount, JSON.stringify(items), 'completed', 'pi_network', new Date().toISOString()]
         );
         await db.run('COMMIT');
+
+        console.log(`✅ Vente terminée pour le paiement : ${paymentId}`);
         res.status(201).json({ success: true });
     } catch (error) {
         await db.run('ROLLBACK');
-        res.status(500).json({ error: error.message });
+        console.error("❌ Erreur Pi Complete:", error.response?.data || error.message);
+        res.status(500).json({ error: "Échec de la validation finale du paiement" });
     }
 });
 
@@ -137,7 +169,7 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
         const { phoneNumber, provider, amountUSD } = req.body;
         const transaction = await Transaction.create({
             description: `Achat DKS - ${provider}`,
-            amount: Math.round(amountUSD), // FedaPay préfère les entiers
+            amount: Math.round(amountUSD),
             currency: { iso: 'USD' },
             customer: {
                 firstname: 'Client',
@@ -152,7 +184,6 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
     }
 });
 
-// 4. HISTORIQUE & PRODUITS
 app.get('/api/orders', async (req, res) => {
     try {
         const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC');
@@ -167,7 +198,6 @@ app.get('/api/products', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- SERVIR LE FRONTEND ---
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
@@ -176,7 +206,6 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// --- DÉMARRAGE ---
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 SERVEUR DKS PRÊT SUR PORT ${PORT}`);
