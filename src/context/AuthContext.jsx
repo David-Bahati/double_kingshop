@@ -4,16 +4,13 @@ import apiService from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // 1. État de l'utilisateur (initialisé immédiatement via le stockage local)
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('dks_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  // 2. État de chargement (un seul exemplaire pour éviter l'erreur Railway)
   const [loading, setLoading] = useState(false);
 
-  // Normalise les rôles venant du backend
   const normalizeRole = (role) => {
     const r = role?.toLowerCase();
     if (r === 'administrator' || r === 'admin') return 'admin';
@@ -22,7 +19,6 @@ export const AuthProvider = ({ children }) => {
     return r;
   };
 
-  // Synchronisation au montage du composant
   useEffect(() => {
     const storedUser = localStorage.getItem('dks_user');
     if (storedUser) {
@@ -34,21 +30,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Gestion des paiements incomplets pour le SDK Pi
   const onIncompletePaymentFound = (payment) => {
-    console.log("Paiement incomplet trouvé :", payment);
+    console.log("Paiement incomplet trouvé chez DKS :", payment);
+    // Optionnel : tu pourrais envoyer ceci à ton serveur pour finaliser une vente interrompue
   };
 
   const login = async (pin) => {
     try {
       setLoading(true);
-      // Authentification Pi avec le scope 'payments' pour autoriser les ventes
+
+      // --- CORRECTION CRITIQUE ICI ---
+      // On demande explicitement 'payments' pour éviter l'erreur "without payments scope"
       if (window.Pi) {
-        await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
-        console.log("✅ Accès Pi Network et paiements autorisé");
+        try {
+          await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
+          console.log("✅ Accès Pi Network et scope 'payments' autorisés pour Double King Shop");
+        } catch (piErr) {
+          console.warn("L'authentification Pi a échoué, vérifiez que vous êtes dans le Pi Browser", piErr);
+          // On continue quand même pour permettre le login via PIN si besoin
+        }
       }
 
-      // Appel à ton serveur Railway
       const data = await apiService.login({ pin });
       
       if (data && data.success) {
@@ -72,6 +74,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem('dks_user');
     localStorage.removeItem('token');
+    // On force un rechargement pour réinitialiser le SDK Pi si nécessaire
+    window.location.href = '/login';
   };
 
   const value = {
@@ -93,3 +97,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+  
