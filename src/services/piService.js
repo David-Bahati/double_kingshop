@@ -13,7 +13,7 @@ class PiService {
       const checkPi = setInterval(() => {
         if (window.Pi) {
           this.pi = window.Pi;
-          // Note : sandbox: true pour tes tests sur Railway
+          // Note : sandbox: false si tu passes en production réelle sur le Mainnet
           this.pi.init({ version: "2.0", sandbox: true }); 
           this.initialized = true;
           clearInterval(checkPi);
@@ -24,9 +24,9 @@ class PiService {
   }
 
   /**
-   * Lance le flux de paiement Pi et met à jour le stock chez Double King Shop
+   * Lance le flux de paiement Pi et prévient l'interface via UI_CALLBACKS
    */
-  async createPayment(amount, memo, cartItems = []) {
+  async createPayment(amount, memo, cartItems = [], UI_CALLBACKS = {}) {
     try {
       await this.initialize();
 
@@ -41,7 +41,6 @@ class PiService {
       };
 
       const callbacks = {
-        // 1. Approbation par ton serveur Railway
         onReadyForServerApproval: async (paymentId) => {
           console.log("Approbation DKS en cours...", paymentId);
           return await apiService.request('/api/pi/approve', {
@@ -50,12 +49,10 @@ class PiService {
           });
         },
 
-        // 2. Complétion et enregistrement de la commande
         onReadyForServerCompletion: async (paymentId, txid) => {
           console.log("Validation de la vente DKS...", paymentId);
           
-          // CORRECTION : On utilise la route /api/orders/pi pour créer la commande et déduire le stock
-          await apiService.request('/api/orders/pi', {
+          const result = await apiService.request('/api/orders/pi', {
             method: 'POST',
             body: JSON.stringify({ 
               paymentId, 
@@ -66,21 +63,26 @@ class PiService {
           });
 
           console.log("✅ Vente réussie chez Double King Shop !");
+          
+          // CRITIQUE : On prévient l'interface (PiPayment.js) que c'est fini
+          if (UI_CALLBACKS.onSuccess) UI_CALLBACKS.onSuccess(result);
         },
 
         onCancel: (paymentId) => {
           console.log("Paiement annulé", paymentId);
+          if (UI_CALLBACKS.onCancel) UI_CALLBACKS.onCancel();
         },
         onError: (error, payment) => {
           console.error("Erreur technique Pi:", error);
+          if (UI_CALLBACKS.onError) UI_CALLBACKS.onError(error.message || "Erreur Pi");
         }
       };
 
-      // Ouvre la fenêtre de paiement sur ton Pixel 8
       await this.pi.createPayment(paymentData, callbacks);
 
     } catch (error) {
       console.error('Erreur lors du paiement DKS:', error);
+      if (UI_CALLBACKS.onError) UI_CALLBACKS.onError(error.message);
       throw error;
     }
   }

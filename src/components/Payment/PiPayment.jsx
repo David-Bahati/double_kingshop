@@ -28,24 +28,42 @@ const PiPayment = ({ onSuccess, onError }) => {
       setPaymentStatus('initializing');
 
       const totalAmount = getCartTotal();
-      const piRate = CURRENCIES?.PI?.rate || 0.01; // Ajusté selon ton image
+      const piRate = CURRENCIES?.PI?.rate || 0.01;
       const amountInPi = totalAmount / piRate;
 
+      // MODIFICATION ICI : On passe des callbacks à createPayment 
+      // pour s'assurer que le succès ne soit déclaré qu'une fois validé par le réseau
       await piService.createPayment(
         amountInPi.toFixed(4), 
         `DKS Order #${Date.now()}`,
-        cartItems
+        cartItems,
+        {
+          onSuccess: () => {
+            // Cette partie doit être appelée uniquement après la confirmation finale
+            setPaymentStatus('completed');
+            clearCart();
+            if (onSuccess) onSuccess();
+            setLoading(false);
+          },
+          onCancel: () => {
+            setPaymentStatus(null);
+            setLoading(false);
+          },
+          onError: (err) => {
+            setPaymentStatus('failed');
+            setLoading(false);
+            if (onError) onError(err);
+          }
+        }
       );
 
-      setPaymentStatus('completed');
-      clearCart();
-      if (onSuccess) onSuccess();
+      // On ne met pas clearCart() ici car createPayment est asynchrone 
+      // et le wallet Pi prend du temps à valider.
 
     } catch (error) {
+      setLoading(false);
       setPaymentStatus('failed');
       if (onError) onError(error.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -77,7 +95,7 @@ const PiPayment = ({ onSuccess, onError }) => {
 
       {paymentStatus && paymentStatus !== 'completed' && (
         <div className="mb-6 p-4 bg-blue-50 rounded-2xl text-[11px] text-blue-700 font-black uppercase text-center animate-pulse">
-           {paymentStatus === 'initializing' ? '⏳ Vérification...' : 'En attente de confirmation...'}
+           {paymentStatus === 'initializing' ? '⏳ Ouverture du Wallet Pi...' : 'En attente de confirmation...'}
         </div>
       )}
 
