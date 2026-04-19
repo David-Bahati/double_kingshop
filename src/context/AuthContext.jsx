@@ -4,24 +4,16 @@ import apiService from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  // 1. État de l'utilisateur (initialisé immédiatement via le stockage local)
   const [user, setUser] = useState(() => {
-  const savedUser = localStorage.getItem('dks_user');
-  return savedUser ? JSON.parse(savedUser) : null;
-});
-// --- DANS AuthProvider ---
+    const savedUser = localStorage.getItem('dks_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
-// 1. Initialisation de l'utilisateur (Vérification immédiate du stockage)
-const [user, setUser] = useState(() => {
-  const saved = localStorage.getItem('dks_user');
-  return saved ? JSON.parse(saved) : null;
-});
+  // 2. État de chargement (un seul exemplaire pour éviter l'erreur Railway)
+  const [loading, setLoading] = useState(false);
 
-// 2. UN SEUL état loading (Correction de l'erreur Railway)
-const [loading, setLoading] = useState(false); 
-
-// --- FIN DU BLOC CORRIGÉ ---
-
-
+  // Normalise les rôles venant du backend
   const normalizeRole = (role) => {
     const r = role?.toLowerCase();
     if (r === 'administrator' || r === 'admin') return 'admin';
@@ -30,6 +22,7 @@ const [loading, setLoading] = useState(false);
     return r;
   };
 
+  // Synchronisation au montage du composant
   useEffect(() => {
     const storedUser = localStorage.getItem('dks_user');
     if (storedUser) {
@@ -39,27 +32,26 @@ const [loading, setLoading] = useState(false);
         role: normalizeRole(parsedUser.role)
       });
     }
-    setLoading(false);
   }, []);
 
-  // Fonction vide pour gérer les paiements incomplets demandée par Pi
+  // Gestion des paiements incomplets pour le SDK Pi
   const onIncompletePaymentFound = (payment) => {
     console.log("Paiement incomplet trouvé :", payment);
   };
 
   const login = async (pin) => {
     try {
-      // 1. AUTHENTIFICATION PI NETWORK (AJOUT DU SCOPE PAYMENTS)
-      // C'est cette ligne qui corrige l'erreur de scope dans Double King Shop
+      setLoading(true);
+      // Authentification Pi avec le scope 'payments' pour autoriser les ventes
       if (window.Pi) {
         await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
-        console.log("✅ Pi Scope 'payments' accordé");
+        console.log("✅ Accès Pi Network et paiements autorisé");
       }
 
-      // 2. APPEL AU BACKEND RAILWAY
+      // Appel à ton serveur Railway
       const data = await apiService.login({ pin });
       
-      if (data.success) {
+      if (data && data.success) {
         const normalizedUser = {
           ...data.user,
           role: normalizeRole(data.user.role)
@@ -69,8 +61,10 @@ const [loading, setLoading] = useState(false);
         return data;
       }
     } catch (err) {
-      console.error("Erreur Login/Pi:", err);
+      console.error("Erreur d'authentification Double King Shop:", err);
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
