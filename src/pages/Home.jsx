@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-const [isAiOpen, setIsAiOpen] = useState(false);
 
 import { Link } from 'react-router-dom';
 import { 
@@ -19,6 +18,8 @@ import apiService from '../services/api';
 
 const Home = () => {
   // --- LOGIQUE DE TON ANCIEN CODE ---
+const [isAiOpen, setIsAiOpen] = useState(false);
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
