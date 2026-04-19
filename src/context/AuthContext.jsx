@@ -8,9 +8,19 @@ export const AuthProvider = ({ children }) => {
   const savedUser = localStorage.getItem('dks_user');
   return savedUser ? JSON.parse(savedUser) : null;
 });
-const [loading, setLoading] = useState(false); // On peut commencer à false car on vérifie immédiatement
+// --- DANS AuthProvider ---
 
-  const [loading, setLoading] = useState(true);
+// 1. Initialisation de l'utilisateur (Vérification immédiate du stockage)
+const [user, setUser] = useState(() => {
+  const saved = localStorage.getItem('dks_user');
+  return saved ? JSON.parse(saved) : null;
+});
+
+// 2. UN SEUL état loading (Correction de l'erreur Railway)
+const [loading, setLoading] = useState(false); 
+
+// --- FIN DU BLOC CORRIGÉ ---
+
 
   const normalizeRole = (role) => {
     const r = role?.toLowerCase();
