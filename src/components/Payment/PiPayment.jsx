@@ -13,10 +13,22 @@ const PiPayment = ({ onSuccess, onError }) => {
     const init = async () => {
       try {
         await piService.initialize();
+        
+        // --- MISE À JOUR POUR LES CLIENTS ---
+        // On authentifie le client immédiatement pour obtenir le "payments scope"
+        // sans passer par la page de login du staff.
+        if (window.Pi) {
+          await window.Pi.authenticate(['username', 'payments'], (payment) => {
+            console.log("Paiement incomplet (Client) :", payment);
+          });
+          console.log("✅ Client Double King Shop authentifié avec succès");
+        }
+        
         setPiReady(true);
       } catch (error) {
         setPiReady(false);
-        if (onError) onError('Utilisez le navigateur Pi Browser pour payer');
+        console.error("Erreur Initialisation Client:", error);
+        if (onError) onError('Veuillez utiliser le Pi Browser pour effectuer vos achats.');
       }
     };
     init();
@@ -31,18 +43,16 @@ const PiPayment = ({ onSuccess, onError }) => {
       const piRate = CURRENCIES?.PI?.rate || 0.01;
       const amountInPi = totalAmount / piRate;
 
-      // MODIFICATION ICI : On passe des callbacks à createPayment 
-      // pour s'assurer que le succès ne soit déclaré qu'une fois validé par le réseau
+      // Appel au service avec les callbacks pour gérer l'UI
       await piService.createPayment(
         amountInPi.toFixed(4), 
         `DKS Order #${Date.now()}`,
         cartItems,
         {
-          onSuccess: () => {
-            // Cette partie doit être appelée uniquement après la confirmation finale
+          onSuccess: (result) => {
             setPaymentStatus('completed');
             clearCart();
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess(result);
             setLoading(false);
           },
           onCancel: () => {
@@ -57,12 +67,10 @@ const PiPayment = ({ onSuccess, onError }) => {
         }
       );
 
-      // On ne met pas clearCart() ici car createPayment est asynchrone 
-      // et le wallet Pi prend du temps à valider.
-
     } catch (error) {
       setLoading(false);
       setPaymentStatus('failed');
+      console.error('Erreur Paiement Client:', error);
       if (onError) onError(error.message);
     }
   };
