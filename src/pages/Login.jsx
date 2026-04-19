@@ -134,11 +134,7 @@ const Login = () => {
             <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Double King Shop Management</span>
           </div>
           
-          <div className="grid grid-cols-3 gap-2 text-[8px] font-black text-gray-400 uppercase tracking-tighter text-center">
-            <div className="p-1 bg-gray-50 rounded">Admin: 0000</div>
-            <div className="p-1 bg-gray-50 rounded">Vendeur: 1111</div>
-            <div className="p-1 bg-gray-50 rounded">Caissier: 2222</div>
-          </div>
+          
         </div>
       </div>
     </div>
