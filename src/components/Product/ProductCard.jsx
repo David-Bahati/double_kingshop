@@ -65,7 +65,8 @@ const ProductCard = ({ product }) => {
           </div>
           <div className="text-right">
             <p className="text-[8px] text-yellow-600 font-black uppercase tracking-widest">Paiement Pi</p>
-            <p className="text-sm font-black text-yellow-700">{priceInPi} Π</p>
+            
+            <p className="text-yellow-600 font-bold">{piPrice} π</p>
           </div>
         </div>
       </div>
