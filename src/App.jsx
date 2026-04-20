@@ -6,7 +6,7 @@ import { NotificationProvider, NotificationContainer } from './context/Notificat
 import { ThemeProvider } from './context/ThemeContext';
 import { ROLES } from './utils/constants';
 
-// Pages
+// Pages Existantes
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Checkout from './pages/Checkout';
@@ -20,18 +20,20 @@ import CashierDashboard from './pages/CashierDashboard';
 import SalesmanDashboard from './pages/SalesmanDashboard';
 import Customers from './pages/Customers';
 
+// --- NOUVELLES PAGES AJOUTÉES ---
+import Categories from './pages/Categories';
+import AdminOrders from './pages/AdminOrders';
+import Expenses from './pages/Expenses';
+
+
 // --- COMPOSANT DE PROTECTION DES ROUTES ---
-// On l'adapte pour accepter Admin, Vendeur et Caissier sur le même Dashboard
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
 
-  // Si pas connecté, retour au Login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Vérification des rôles (Admin, Vendeur, Caissier)
-  // On s'assure que le rôle de l'utilisateur fait partie des rôles autorisés
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/login" replace />;
   }
@@ -49,12 +51,35 @@ function App() {
               <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
                 <NotificationContainer />
                 <Routes>
-                  {/* Route Publique */}
+                  {/* Routes Publiques */}
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/orders" element={<OrderHistory />} />
                   <Route path="/products" element={<Products />} />
+
+                  {/* --- ROUTES ADMIN / GESTION --- */}
+                  <Route
+                    path="/admin/categories"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                        <Categories />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+
+<Route path="/admin/expenses" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Expenses /></ProtectedRoute>} />
+
+                  
+                  <Route
+                    path="/admin/orders"
+                    element={
+                      <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CASHIER]}>
+                        <AdminOrders />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   <Route
                     path="/users"
@@ -123,7 +148,6 @@ function App() {
                   } />
                 </Routes>
 
-                {/* Infos de Contact (Env) - Optionnel en bas de page */}
                 <footer className="fixed bottom-4 right-4 text-[10px] text-gray-400 text-right pointer-events-none">
                   <p>Double King Shop • Bunia</p>
                   <p>{import.meta.env.VITE_CONTACT_PHONE}</p>
