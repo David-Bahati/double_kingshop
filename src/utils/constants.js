@@ -1,5 +1,5 @@
 export const ROLES = {
-  ADMIN: 'administrator', // Corrigé pour correspondre à index.cjs
+  ADMIN: 'admin', // Corrigé pour correspondre à index.cjs
   CASHIER: 'cashier',
   SALESMAN: 'salesman'
 };
