@@ -7,13 +7,14 @@ const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
   
   // Calcul du prix en Pi basé sur ton taux de change (Conservé)
-  const priceInPi = (product.price / (CURRENCIES.PI?.rate || 1)).toFixed(4);
+  const priceInPi = (product.price / (CURRENCIES.PI?.rate || 1)).toFixed(9);
+
 
   // Gestion de l'URL de l'image (Adapté pour Railway/Vercel)
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-  const imageUrl = product.image && product.image !== '/uploads/default.jpg' 
-    ? `${apiUrl}${product.image}` 
-    : null;
+  const imageUrl = product.image 
+  ? (product.image.startsWith('http') ? product.image : `${window.location.origin}${product.image}`)
+  : null;
+
 
   return (
     <div className="group relative bg-white rounded-[2.5rem] p-4 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-100 border border-slate-100 flex flex-col h-full">
