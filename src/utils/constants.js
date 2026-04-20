@@ -31,5 +31,5 @@ export const ROLE_PERMISSIONS = {
 export const CURRENCIES = {
   USD: { symbol: '$', rate: 1 },
   CDF: { symbol: 'FC', rate: 2800 },
-  PI: { symbol: 'Π', rate: 0.01 }
+  PI: { symbol: 'Π', rate: 314159 }
 };
