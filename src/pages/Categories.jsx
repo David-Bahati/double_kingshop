@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // On garde Link car il est déjà importé
 import ProductCard from '../components/Product/ProductCard';
 import apiService from '../services/api';
 
@@ -53,8 +53,16 @@ const Products = () => {
           </div>
           <div className="flex gap-2">
             <button onClick={() => setShowModal(true)} className="bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-lg">+ Produit</button>
-            <Link to="/admin/categories" className="bg-white border px-6 py-3 rounded-full font-bold shadow-sm">Catégories</Link>
-            <Link to="/" className="bg-white border px-6 py-3 rounded-full font-bold">← Retour</Link>
+            
+            {/* CORRECTION : Lien vers /admin/categories */}
+            <Link to="/admin/categories" className="bg-white border px-6 py-3 rounded-full font-bold shadow-sm flex items-center justify-center">
+               Catégories
+            </Link>
+            
+            {/* CORRECTION : Retour vers le dashboard admin au lieu de l'accueil "/" */}
+            <Link to="/admin/dashboard" className="bg-white border px-6 py-3 rounded-full font-bold shadow-sm flex items-center justify-center">
+               ← Retour
+            </Link>
           </div>
         </div>
 
