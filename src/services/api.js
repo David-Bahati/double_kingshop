@@ -53,17 +53,25 @@ class ApiService {
     return data;
   }
 
-  // --- CATÉGORIES (NOUVEAU) ---
-  async getCategories() { return this.request('/api/categories'); }
-  async addCategory(cat) { return this.request('/api/categories', { method: 'POST', body: JSON.stringify(cat) }); }
-  async deleteCategory(id) { return this.request(`/api/categories/${id}`, { method: 'DELETE' }); }
+  // --- CATÉGORIES ---
+  async getCategories() { 
+    return this.request('/api/categories'); 
+  }
+  
+  async addCategory(cat) { 
+    return this.request('/api/categories', { method: 'POST', body: JSON.stringify(cat) }); 
+  }
+  
+  async deleteCategory(id) { 
+    return this.request(`/api/categories/${id}`, { method: 'DELETE' }); 
+  }
 
-  // --- PRODUITS (MIS À JOUR) ---
+  // --- PRODUITS ---
   async getProducts() { return this.request('/api/products'); }
   async addProduct(formData) { return this.request('/api/products', { method: 'POST', body: formData }); }
   async deleteProduct(id) { return this.request(`/api/products/${id}`, { method: 'DELETE' }); }
 
-  // --- PI & FEDAPAY (CONSERVÉS) ---
+  // --- PI & FEDAPAY ---
   async approvePiPayment(paymentId) { return this.request('/api/pi/approve', { method: 'POST', body: JSON.stringify({ paymentId }) }); }
   async completePiOrder(orderData) { return this.request('/api/orders/pi', { method: 'POST', body: JSON.stringify(orderData) }); }
   async initiateMobileMoney(paymentData) { return this.request('/api/mobile-money/initiate', { method: 'POST', body: JSON.stringify(paymentData) }); }

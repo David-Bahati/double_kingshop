@@ -20,7 +20,7 @@ FedaPay.setEnvironment(process.env.FEDAPAY_MODE || 'sandbox');
 // --- MIDDLEWARES ---
 app.use(cors({
     origin: '*', 
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], // Ajout de PATCH ici
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], 
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
@@ -71,7 +71,6 @@ async function initDb() {
         );
     `);
 
-    // Vérification de la colonne 'published' (au cas où la table existe déjà)
     const tableInfo = await db.all("PRAGMA table_info(products)");
     const hasPublished = tableInfo.some(column => column.name === 'published');
     if (!hasPublished) {
@@ -88,8 +87,6 @@ async function initDb() {
 initDb().catch(err => console.error("❌ Erreur DB:", err));
 
 // --- ROUTES PRODUITS ---
-
-// Récupérer tous les produits (Admin)
 app.get('/api/products', async (req, res) => {
     try {
         const products = await db.all('SELECT * FROM products ORDER BY id DESC');
@@ -97,16 +94,13 @@ app.get('/api/products', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Publier ou Masquer un produit (NOUVEAU)
 app.patch('/api/products/:id/publish', async (req, res) => {
     try {
         const { id } = req.params;
-        const { published } = req.body; // Doit être 1 ou 0
+        const { published } = req.body;
         await db.run('UPDATE products SET published = ? WHERE id = ?', [published, id]);
         res.json({ success: true, published: !!published });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/products', upload.single('image'), async (req, res) => {
@@ -141,8 +135,6 @@ app.delete('/api/products/:id', async (req, res) => {
         res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
-
-// [Garder ici tes routes Catégories, Dépenses, Users, Pi et FedaPay telles quelles...]
 
 // --- ROUTES CATÉGORIES ---
 app.get('/api/categories', async (req, res) => {
