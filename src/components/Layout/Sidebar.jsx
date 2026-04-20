@@ -7,6 +7,9 @@ const menuItems = {
   [ROLES.ADMIN]: [
     { name: 'Tableau de bord', icon: '📊', path: '/admin/dashboard' },
     { name: 'Produits', icon: '📦', path: '/products' },
+    // --- LIGNE AJOUTÉE ICI ---
+    { name: 'Catégories', icon: '🗂️', path: '/admin/categories' }, 
+    // ------------------------
     { name: 'Commandes', icon: '🛒', path: '/orders' },
     { name: 'Utilisateurs', icon: '👥', path: '/users' },
     { name: 'Rapports', icon: '📈', path: '/reports' },
