@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
+// src/components/Product/AddProductModal.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Image as ImageIcon, Eye, EyeOff, AlertCircle, Loader } from 'lucide-react';
 
 const AddProductModal = ({ 
   isOpen, 
   onClose, 
   onAdd, 
   categories = [], 
-  product = null,  // Pour le mode édition
-  mode = 'add'     // 'add' ou 'edit'
+  product = null, 
+  mode = 'add' 
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -15,125 +16,126 @@ const AddProductModal = ({
     stock: '',
     category: '',
     description: '',
-    image: null,
-    published: false  // 🎯 Nouveau champ
+    published: false
   });
   
+  const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const fileInputRef = useRef(null);
 
-  // 🎯 Initialisation du formulaire (Ajout ou Édition)
+  // 🎯 Initialisation du formulaire à l'ouverture
   useEffect(() => {
     if (isOpen) {
       if (mode === 'edit' && product) {
-        // Mode Édition : pré-remplir avec les données existantes
         setFormData({
           name: product.name || '',
           price: product.price?.toString() || '',
           stock: product.stock?.toString() || '',
           category: product.category || '',
           description: product.description || '',
-          image: null, // On ne pré-remplit pas l'image (on garde l'existante si pas de nouveau upload)
           published: product.published || false
         });
-        // Preview si le produit a déjà une image URL
+        // Prévisualisation si le produit a déjà une image
         if (product.image) {
-          setImagePreview(product.image.startsWith('http') ? product.image : `http://localhost:3001${product.image}`);
+          setImagePreview(product.image.startsWith('http') ? product.image : `${window.location.origin}${product.image}`);
+        } else {
+          setImagePreview(null);
         }
       } else {
-        // Mode Ajout : formulaire vide
-        setFormData({
-          name: '', price: '', stock: '', category: '', description: '', image: null, published: false
-        });
+        setFormData({ name: '', price: '', stock: '', category: '', description: '', published: false });
         setImagePreview(null);
-      }      setErrors({});
+      }
+      setImageFile(null);      setErrors({});
     }
   }, [isOpen, mode, product]);
 
-  // 🎯 Gestion de la preview d'image
+  //  Nettoyage des URLs blob à la fermeture
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  // 🎯 Gestion du fichier image
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData(prev => ({ ...prev, image: file }));
-      // Créer une URL locale pour la preview
-      const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
+      if (!file.type.startsWith('image/')) {
+        setErrors(prev => ({ ...prev, image: 'Format invalide. Utilisez JPG, PNG ou WEBP.' }));
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors(prev => ({ ...prev, image: 'Fichier trop volumineux. Max 5MB.' }));
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      setErrors(prev => { const n = {...prev}; delete n.image; return n; });
     }
   };
 
-  // 🎯 Validation du formulaire
-  const validateForm = () => {
+  // 🎯 Validation
+  const validate = () => {
     const newErrors = {};
-    
     if (!formData.name.trim()) newErrors.name = 'Le nom est requis';
     if (!formData.price || parseFloat(formData.price) <= 0) newErrors.price = 'Prix invalide';
     if (!formData.stock || parseInt(formData.stock) < 0) newErrors.stock = 'Stock invalide';
-    
-    // ⚠️ Catégorie OBLIGATOIRE
-    if (!formData.category) {
-      newErrors.category = 'Veuillez sélectionner une catégorie';
-    }
+    if (!formData.category) newErrors.category = 'La catégorie est obligatoire';
+    if (imageFile && !imageFile.type.startsWith('image/')) newErrors.image = 'Image invalide';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // 🎯 Soumission du formulaire
+  // 🎯 Soumission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) return;
+    if (!validate()) return;
     
     setIsSubmitting(true);
-
     try {
-      // 🎯 Utilisation de FormData pour supporter l'upload d'image (multer)
-      const data = new FormData();
-      data.append('name', formData.name.trim());
-      data.append('price', formData.price);
-      data.append('stock', formData.stock);
-      data.append('category', formData.category);
-      data.append('description', formData.description.trim() || 'Matériel Double King Shop');
-      data.append('published', formData.published); // 🎯 Inclure le statut de publication
-            if (formData.image) {
-        data.append('image', formData.image);
-      }
-      // Si mode édition et pas de nouvelle image, on peut envoyer l'URL existante en JSON supplémentaire
-      if (mode === 'edit' && !formData.image && product?.image) {
-        data.append('existingImage', product.image);
+      const payload = new FormData();      payload.append('name', formData.name.trim());
+      payload.append('price', formData.price);
+      payload.append('stock', formData.stock);
+      payload.append('category', formData.category);
+      payload.append('description', formData.description.trim());
+      payload.append('published', formData.published);
+      
+      if (imageFile) {
+        payload.append('image', imageFile);
+      } else if (mode === 'edit' && product?.image) {
+        // Indique au backend de conserver l'image existante
+        payload.append('keepExistingImage', 'true');
       }
 
-      await onAdd(data, mode, product?.id); // 🎯 Passer mode et id pour différencier ajout/modif
-      
-      onClose();
-      
-    } catch (error) {
-      console.error('Erreur produit:', error);
-      setErrors({ submit: error.message || 'Erreur lors de l\'enregistrement' });
+      await onAdd(payload, mode, product?.id);
+    } catch (err) {
+      console.error('Erreur soumission:', err);
+      // L'erreur est gérée dans Products.jsx via le throw
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 🎯 Fermeture avec nettoyage de la preview
   const handleClose = () => {
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
-    }
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-      
-      {/* Overlay cliquable pour fermer */}
-      <div className="absolute inset-0" onClick={handleClose} />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+      {/* Overlay */}
+      <div 
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+        onClick={handleClose}
+      />
 
-      {/* Modal Content */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp max-h-[90vh] flex flex-col">
+      {/* Modal */}
+      <div className="relative bg-white rounded-[2rem] w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl animate-slideUp flex flex-col">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white flex justify-between items-center shrink-0">
@@ -142,194 +144,143 @@ const AddProductModal = ({
               {mode === 'add' ? '➕ Nouveau Produit' : '✏️ Modifier le Produit'}
             </h2>
             <p className="text-blue-100 text-xs mt-0.5">
-              {mode === 'add' ? 'Ajouter un article au catalogue DKS' : 'Mettre à jour les informations'}
-            </p>
-          </div>
-          <button             onClick={handleClose} 
+              {mode === 'add' ? 'Ajouter au catalogue DKS' : 'Mettre à jour les informations'}
+            </p>          </div>
+          <button 
+            onClick={handleClose} 
             disabled={isSubmitting}
             className="p-2 hover:bg-white/20 rounded-full transition-colors disabled:opacity-50"
+            aria-label="Fermer"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Scrollable Form Area */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+        {/* Form Scrollable */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           
-          {/* Message d'erreur global */}
+          {/* Erreur globale */}
           {errors.submit && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-              <AlertCircle size={16} />
-              {errors.submit}
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm animate-pulse">
+              <AlertCircle size={16} /> {errors.submit}
             </div>
           )}
 
-          {/* Nom du produit */}
+          {/* Upload Image */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-              Nom du produit <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Image du produit</label>
+            <div 
+              className={`relative border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer hover:border-blue-400 ${
+                imagePreview ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleImageChange} 
+                disabled={isSubmitting}
+              />
+              
+              {imagePreview ? (
+                <div className="space-y-3">
+                  <img src={imagePreview} alt="Preview" className="mx-auto h-28 w-28 object-cover rounded-xl shadow-md" />
+                  <p className="text-xs text-slate-600 font-medium truncate max-w-[200px] mx-auto">
+                    {imageFile?.name || 'Image actuelle'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}
+                    className="text-xs text-red-600 font-bold hover:underline"
+                    disabled={isSubmitting}                  >
+                    Supprimer l'image
+                  </button>
+                </div>
+              ) : (
+                <div className="py-4">
+                  <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+                  <p className="text-xs text-slate-500 font-medium">Cliquez pour uploader</p>
+                  <p className="text-[10px] text-slate-400 mt-1">JPG, PNG ou WEBP (max 5MB)</p>
+                </div>
+              )}
+            </div>
+            {errors.image && <p className="text-[10px] text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={10} /> {errors.image}</p>}
+          </div>
+
+          {/* Nom */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Nom <span className="text-red-500">*</span></label>
             <input
               required
-              className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${
-                errors.name ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200 focus:border-blue-400'
-              }`}
+              className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${errors.name ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200 focus:border-blue-400'}`}
               placeholder="Ex: Clavier Mécanique RGB"
               value={formData.name}
-              onChange={(e) => {
-                setFormData({...formData, name: e.target.value});
-                if (errors.name) setErrors(prev => ({...prev, name: ''}));
-              }}
+              onChange={(e) => { setFormData({...formData, name: e.target.value}); if(errors.name) setErrors(p => ({...p, name: ''})); }}
               disabled={isSubmitting}
             />
             {errors.name && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.name}</p>}
           </div>
 
-          {/* Prix & Stock en grille */}
+          {/* Prix & Stock */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                Prix ($) <span className="text-red-500">*</span>
-              </label>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Prix ($) <span className="text-red-500">*</span></label>
               <input
-                required
-                type="number"
-                step="0.01"                min="0"
-                className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${
-                  errors.price ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200 focus:border-blue-400'
-                }`}
+                required type="number" step="0.01" min="0"
+                className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${errors.price ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200'}`}
                 placeholder="0.00"
                 value={formData.price}
-                onChange={(e) => {
-                  setFormData({...formData, price: e.target.value});
-                  if (errors.price) setErrors(prev => ({...prev, price: ''}));
-                }}
+                onChange={(e) => { setFormData({...formData, price: e.target.value}); if(errors.price) setErrors(p => ({...p, price: ''})); }}
                 disabled={isSubmitting}
               />
               {errors.price && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.price}</p>}
             </div>
-            
             <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                Stock <span className="text-red-500">*</span>
-              </label>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Stock <span className="text-red-500">*</span></label>
               <input
-                required
-                type="number"
-                min="0"
-                className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${
-                  errors.stock ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200 focus:border-blue-400'
-                }`}
+                required type="number" min="0"
+                className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 ${errors.stock ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200'}`}
                 placeholder="0"
-                value={formData.stock}
-                onChange={(e) => {
-                  setFormData({...formData, stock: e.target.value});
-                  if (errors.stock) setErrors(prev => ({...prev, stock: ''}));
-                }}
+                value={formData.stock}                onChange={(e) => { setFormData({...formData, stock: e.target.value}); if(errors.stock) setErrors(p => ({...p, stock: ''})); }}
                 disabled={isSubmitting}
               />
               {errors.stock && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.stock}</p>}
             </div>
           </div>
 
-          {/* 🎯 Catégorie Dynamique + Obligatoire */}
+          {/* Catégorie (Dynamique & Obligatoire) */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-1.5">
-              Catégorie 
-              <span className="text-[10px] font-normal bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Obligatoire</span>
+              Catégorie <span className="text-[10px] font-normal bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Obligatoire</span>
             </label>
             <select
               required
-              className={`w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 appearance-none cursor-pointer ${
-                errors.category ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200 focus:border-blue-400'
-              }`}
-              value={formData.category}              onChange={(e) => {
-                setFormData({...formData, category: e.target.value});
-                if (errors.category) setErrors(prev => ({...prev, category: ''}));
-              }}
+              value={formData.category}
+              onChange={(e) => { setFormData({...formData, category: e.target.value}); if(errors.category) setErrors(p => ({...p, category: ''})); }}
+              className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 appearance-none cursor-pointer ${errors.category ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-blue-200'}`}
               disabled={isSubmitting || categories.length === 0}
             >
-              <option value="">-- Sélectionner une catégorie --</option>
+              <option value="">-- Sélectionner --</option>
               {categories.length > 0 ? (
-                categories.map(cat => (
-                  <option key={cat.id || cat.name} value={cat.name}>
-                    {cat.name}
-                  </option>
-                ))
+                categories.map(cat => <option key={cat.id || cat.name} value={cat.name}>{cat.name}</option>)
               ) : (
-                <option value="Accessoires" disabled>Aucune catégorie disponible</option>
+                <option value="" disabled>Aucune catégorie chargée</option>
               )}
             </select>
-            {errors.category && (
-              <p className="text-[10px] text-red-500 mt-1 ml-1 flex items-center gap-1">
-                <AlertCircle size={10} /> {errors.category}
-              </p>
-            )}
+            {errors.category && <p className="text-[10px] text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle size={10} /> {errors.category}</p>}
             {categories.length === 0 && mode === 'add' && (
-              <p className="text-[10px] text-amber-600 mt-1 ml-1">
-                💡 Astuce : Créez d'abord des catégories dans l'onglet "Catégories"
-              </p>
+              <p className="text-[10px] text-amber-600 mt-1 ml-1">💡 Créez d'abord des catégories dans l'onglet Catégories</p>
             )}
-          </div>
-
-          {/* 🎯 Upload d'image avec Preview */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-              Image du produit
-            </label>
-            <div className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${
-              imagePreview ? 'border-blue-300 bg-blue-50' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
-            }`}>
-              {imagePreview ? (
-                <div className="space-y-3">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className="mx-auto h-24 w-24 object-cover rounded-lg shadow-sm"
-                  />
-                  <p className="text-xs text-slate-600 font-medium">
-                    {formData.image?.name || 'Image actuelle'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {                      setFormData(prev => ({ ...prev, image: null }));
-                      setImagePreview(null);
-                    }}
-                    className="text-xs text-red-600 font-bold hover:underline"
-                    disabled={isSubmitting}
-                  >
-                    Supprimer l'image
-                  </button>
-                </div>
-              ) : (
-                <label className="cursor-pointer block">
-                  <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
-                  <p className="text-xs text-slate-500 font-medium">
-                    Cliquez pour uploader une image
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    PNG, JPG jusqu'à 5MB
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                    disabled={isSubmitting}
-                  />
-                </label>
-              )}
-            </div>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-              Description
-            </label>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Description</label>
             <textarea
               rows="3"
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-blue-200 resize-none"
               placeholder="Brève description du produit..."
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
@@ -337,40 +288,30 @@ const AddProductModal = ({
             />
           </div>
 
-          {/* 🎯 Toggle Publication (Switch Moderne) */}
+          {/* Toggle Publication */}
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg transition-colors ${
-                formData.published ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'              }`}>
-                {formData.published ? <Eye size={18} /> : <EyeOff size={18} />}
-              </div>
+              <div className={`p-2 rounded-lg transition-colors ${formData.published ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                {formData.published ? <Eye size={18} /> : <EyeOff size={18} />}              </div>
               <div>
-                <p className="text-sm font-bold text-slate-900">
-                  {formData.published ? 'Produit publié' : 'Produit en brouillon'}
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  {formData.published 
-                    ? 'Visible sur le catalogue public' 
-                    : 'Visible uniquement par l\'administrateur'}
-                </p>
+                <p className="text-sm font-bold text-slate-900">{formData.published ? 'Publié (Visible)' : 'Brouillon (Masqué)'}</p>
+                <p className="text-[10px] text-slate-500">{formData.published ? 'Affiché sur le catalogue public' : 'Invisible pour les clients'}</p>
               </div>
             </div>
-            
-            {/* Switch Toggle Style Moderne */}
             <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={formData.published}
-                onChange={(e) => setFormData({...formData, published: e.target.checked})}
-                disabled={isSubmitting}
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={formData.published} 
+                onChange={(e) => setFormData({...formData, published: e.target.checked})} 
+                disabled={isSubmitting} 
               />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-2">
+          {/* Actions */}
+          <div className="flex gap-3 pt-2 pb-2">
             <button
               type="button"
               onClick={handleClose}
@@ -382,16 +323,14 @@ const AddProductModal = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
-                  Enregistrement...
+                  <Loader className="animate-spin" size={16} /> Enregistrement...
                 </>
               ) : (
-                mode === 'add'                   ? (formData.published ? '🚀 Ajouter & Publier' : '💾 Enregistrer')
-                  : '💾 Mettre à jour'
+                mode === 'add' ? (formData.published ? '🚀 Ajouter & Publier' : '💾 Enregistrer') : '💾 Mettre à jour'
               )}
             </button>
           </div>
