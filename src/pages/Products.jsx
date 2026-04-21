@@ -1,214 +1,92 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import ProductCard from '../components/Product/ProductCard';
-import apiService from '../services/api';
+import React from 'react';
+import { useCart } from '../../context/CartContext';
+import { CURRENCIES } from '../../utils/constants';
+import { ShoppingCart, Tag, Laptop } from 'lucide-react';
 
-const Products = () => {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const ProductCard = ({ product }) => {
+  const { addToCart } = useCart();
   
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '', price: '', stock: '', category: '', description: ''
-  });
-  const [selectedFile, setSelectedFile] = useState(null);
+  // Calcul du prix en Pi basé sur ton taux de change (Conservé)
+  const priceInPi = (product.price / (CURRENCIES.PI?.rate || 1)).toFixed(9);
 
-  // Vérification du rôle Admin pour la sécurité Double King Shop
-  const user = JSON.parse(localStorage.getItem('user')); 
-  const isAdmin = user?.role === 'ADMIN';
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Gestion de l'URL de l'image (Adapté pour Railway/Vercel)
+  const imageUrl = product.image 
+  ? (product.image.startsWith('http') ? product.image : `${window.location.origin}${product.image}`)
+  : null;
 
-  const loadData = async () => {
-    try {
-      const [prodData, catData] = await Promise.all([
-        apiService.getProducts(),
-        apiService.getCategories()
-      ]);
-      setProducts(prodData || []);
-      setCategories(catData || []);
-    } catch (err) {
-      console.error('Erreur DKS:', err);
-      setError('Impossible de charger les données.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTogglePublish = async (id, currentStatus) => {
-    try {
-      const newStatus = currentStatus === 1 ? 0 : 1;
-      
-      const response = await fetch(`${window.location.origin}/api/products/${id}/publish`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ published: newStatus })
-      });
-
-      if (response.ok) {
-        // Mise à jour instantanée de la liste après publication
-        await loadData();
-      } else {
-        alert("Erreur lors de la modification du statut");
-      }
-    } catch (err) {
-      console.error("Erreur publication:", err);
-    }
-  };
-
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    const data = new FormData();
-    data.append('name', formData.name);
-    data.append('price', formData.price);
-    data.append('stock', formData.stock);
-    data.append('category', formData.category);
-    data.append('description', formData.description || 'Produit Double King Shop');
-    if (selectedFile) data.append('image', selectedFile);
-
-    try {
-      await apiService.addProduct(data);
-      setShowModal(false);
-      setFormData({ name: '', price: '', stock: '', category: '', description: '' });
-      setSelectedFile(null);
-      await loadData(); // Recharge la liste pour voir le nouveau produit
-    } catch (err) {
-      alert("Erreur lors de l'ajout du produit");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("Supprimer définitivement cet article du stock ?")) {
-      try {
-        await apiService.deleteProduct(id);
-        loadData();
-      } catch (err) {
-        alert("Erreur de suppression");
-      }
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8 text-slate-900">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic">Catalogue DKS</h1>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bunia • Gestion de stock</p>
-          </div>
-          <div className="flex gap-3">
-            {isAdmin && (
-              <button 
-                onClick={() => setShowModal(true)}
-                className="bg-blue-600 px-6 py-3 rounded-full font-black text-white shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-xs uppercase"
-              >
-                + Ajouter un produit
-              </button>
-            )}
-            <Link to="/admin/dashboard" className="bg-white border-2 border-slate-200 px-4 py-3 rounded-full font-bold text-slate-700 text-xs uppercase">
-              Retour
-            </Link>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="p-20 text-center font-black text-slate-300 animate-pulse uppercase tracking-[0.3em]">Chargement...</div>
-        ) : (
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product) => (
-              <div key={product.id} className="flex flex-col">
-                {/* Visualisation du produit (Image, GCV Pi, Prix USD) */}
-                <ProductCard product={product} />
-                
-                {/* Barre d'administration sécurisée sous chaque produit */}
-                <div className="mt-4 bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between">
-                  {isAdmin ? (
-                    <button 
-                      onClick={() => handleTogglePublish(product.id, product.published)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                        product.published === 1 
-                        ? 'bg-green-100 text-green-700 border border-green-200' 
-                        : 'bg-slate-100 text-slate-400 border border-slate-200'
-                      }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${product.published === 1 ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                      {product.published === 1 ? '● Publié' : '○ Masqué'}
-                    </button>
-                  ) : (
-                    <span className="text-[10px] font-black uppercase text-slate-400 px-2">
-                      Statut: {product.published === 1 ? 'En ligne' : 'Brouillon'}
-                    </span>
-                  )}
-
-                  {isAdmin && (
-                    <button 
-                      onClick={() => handleDelete(product.id)}
-                      className="text-red-500 hover:text-red-700 font-black text-[10px] uppercase px-2"
-                    >
-                      Supprimer
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+    <div className="group relative bg-white rounded-[2.5rem] p-4 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-100 border border-slate-100 flex flex-col h-full">
+      
+      {/* BADGE DE CATÉGORIE & STOCK */}
+      <div className="absolute top-6 left-6 right-6 z-10 flex justify-between items-center">
+        <span className="flex items-center gap-1.5 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm border border-slate-100">
+          <Tag size={10} className="text-blue-600" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">
+            {product.category || "Accessoire"}
+          </span>
+        </span>
+        
+        <span className="bg-slate-900/80 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-tighter">
+          Stock: {product.stock}
+        </span>
       </div>
 
-      {/* Modal d'ajout de produit (Reste identique mais avec texte noir forcé) */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl">
-            <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase italic">Nouveau Produit</h2>
-            <form onSubmit={handleAddProduct} className="space-y-4">
-              <input 
-                type="text" placeholder="Nom de l'article" required
-                className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none text-slate-900 font-bold focus:border-blue-500"
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-              />
-              <div className="flex gap-3">
-                <input 
-                  type="number" placeholder="Prix USD" required
-                  className="w-1/2 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none text-slate-900 font-bold focus:border-blue-500"
-                  onChange={(e) => setFormData({...formData, price: e.target.value})}
-                />
-                <input 
-                  type="number" placeholder="Stock" required
-                  className="w-1/2 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none text-slate-900 font-bold focus:border-blue-500"
-                  onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                />
-              </div>
-              <select 
-                className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none text-slate-900 font-bold focus:border-blue-500"
-                required
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-              >
-                <option value="">Sélectionner catégorie</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.name}>{cat.name.toUpperCase()}</option>
-                ))}
-              </select>
-              <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                <input 
-                  type="file" accept="image/*" 
-                  onChange={(e) => setSelectedFile(e.target.files[0])}
-                  className="w-full text-xs text-slate-500 font-bold"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg">Enregistrer</button>
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-100 text-slate-500 p-4 rounded-2xl font-bold">Annuler</button>
-              </div>
-            </form>
+      {/* ZONE IMAGE VISUELLE */}
+      <div className="relative aspect-square overflow-hidden rounded-[2rem] bg-slate-50 mb-6 flex items-center justify-center">
+        {imageUrl ? (
+          <img 
+            src={imageUrl} 
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+          />
+        ) : (
+          <div className="flex flex-col items-center text-slate-200">
+            <Laptop size={48} />
+            <span className="text-[10px] font-black uppercase mt-2">DKS Bunia</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-blue-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </div>
+
+      {/* INFOS PRODUIT & DOUBLE PRIX */}
+      <div className="flex-1 px-2">
+        <h3 className="text-lg font-black text-slate-900 leading-tight uppercase italic tracking-tighter mb-1 truncate">
+          {product.name}
+        </h3>
+        <p className="text-slate-400 text-[11px] font-medium line-clamp-1 mb-4">
+          {product.description || "Équipement informatique disponible chez Double King."}
+        </p>
+        
+        <div className="flex justify-between items-end mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+          <div>
+            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Prix USD</p>
+            <p className="text-xl font-black text-blue-600 tracking-tighter">{product.price}$</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[8px] text-yellow-600 font-black uppercase tracking-widest">Paiement Pi</p>
+            <p className="text-sm font-black text-yellow-700">{priceInPi} π</p>
+           
           </div>
         </div>
-      )}
+      </div>
+
+      {/* BOUTON AJOUTER AU PANIER */}
+      <button 
+        onClick={() => addToCart(product)}
+        disabled={product.stock <= 0}
+        className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all ${
+          product.stock > 0 
+          ? 'bg-slate-900 text-white hover:bg-blue-600 shadow-lg active:scale-95' 
+          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+        }`}
+      >
+        <ShoppingCart size={16} />
+        {product.stock > 0 ? "Ajouter au panier" : "Rupture de stock"}
+      </button>
     </div>
   );
 };
 
-export default Products;
+export default ProductCard;
