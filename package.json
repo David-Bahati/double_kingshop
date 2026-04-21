@@ -3,18 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Double King Shop - Système de gestion e-commerce complet pour Bunia, RDC. Paiements Pi Network, Mobile Money et Cash.",
+  "description": "Double King Shop - Système de gestion e-commerce complet pour Bunia, RDC.",
   "author": {
     "name": "Double King Shop",
-    "email": "bahatinyeke@gmail.com",
-    "url": "https://doublekingshop.com"
+    "email": "bahatinyeke@gmail.com"
   },
   "license": "MIT",
-  "homepage": "https://doublekingshop.com",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ton-user/double-king-shop.git"
-  },
   "engines": {
     "node": ">=18.0.0"
   },
@@ -25,8 +19,8 @@
     "server": "node server/index.cjs",
     "server:dev": "nodemon --watch server --ext js,cjs,json server/index.cjs",
     "client:build": "vite build",
-    "build": "vite build",
-    "install:all": "pnpm install",
+    "build": "npx pnpm install && npx pnpm run client:build",
+    "install:all": "npx pnpm install",
     "prepare": "echo 'Skip husky on Railway'",
     "clean": "rm -rf dist node_modules pnpm-lock.yaml",
     "db:migrate": "node server/scripts/migrate-db.cjs"
