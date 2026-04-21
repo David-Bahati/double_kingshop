@@ -12,7 +12,7 @@ import { ROLES } from '../utils/constants';
 // Composants
 import ProductCard from '../components/Product/ProductCard';
 import QuickViewModal from '../components/Product/QuickViewModal';
-import AddProductModal from '../components/Product/AddProductModal';
+import AddProductModal from '../components/Dashboard/AddProductModal';
 
 // Services
 import apiService from '../services/api';
