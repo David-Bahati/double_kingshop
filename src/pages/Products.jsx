@@ -1,6 +1,6 @@
 import React from 'react';
-import { useCart } from '../../context/CartContext';
-import { CURRENCIES } from '../../utils/constants';
+import { useCart } from '../context/CartContext';
+import { CURRENCIES } from '../utils/constants';
 import { ShoppingCart, Tag, Laptop } from 'lucide-react';
 
 const ProductCard = ({ product }) => {
