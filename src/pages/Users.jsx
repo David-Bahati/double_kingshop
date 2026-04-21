@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
-  Users, Plus, Search, Edit2, Trash2, X, Loader, 
+  UsersIcon, Plus, Search, Edit2, Trash2, X, Loader, 
   AlertCircle, CheckCircle, Key, UserCheck, Shield,
   MapPin, Phone, Filter, MoreVertical
 } from 'lucide-react';
