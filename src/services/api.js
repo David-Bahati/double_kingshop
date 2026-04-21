@@ -1,20 +1,32 @@
-const API_BASE_URL = ""; 
+// src/services/api.js
+
+// 🔧 URL de l'API : utilise une variable d'environnement avec fallback
+const API_BASE_URL = import.meta.env?.VITE_API_URL 
+  || process.env?.REACT_APP_API_URL 
+  || 'http://localhost:5000'; // ← Change selon ton environnement
 
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = localStorage.getItem('token');
   }
 
+  // --- GESTION DU TOKEN ---
   setToken(token) {
-    this.token = token;
-    localStorage.setItem('token', token);
+    if (token) {
+      localStorage.setItem('token', token);
+    }
   }
 
   getToken() {
-    return this.token || localStorage.getItem('token');
+    return localStorage.getItem('token');
   }
 
+  clearToken() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+
+  // --- REQUÊTE GÉNÉRIQUE ---
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
@@ -23,6 +35,7 @@ class ApiService {
     const config = {
       ...options,
       headers: {
+        // Ne pas mettre Content-Type pour FormData (le navigateur le fait)
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers
@@ -31,51 +44,129 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
+      
+      // Gestion des réponses non-JSON (ex: 204 No Content)
       const contentType = response.headers.get("content-type");
-      let data;
+      let data;      
       if (contentType && contentType.includes("application/json")) {
-          data = await response.json();
+        data = await response.json();
       } else {
-          data = { message: await response.text() };
+        const text = await response.text();
+        data = text ? { message: text } : {};
       }
-      if (!response.ok) throw new Error(data.error || data.message || 'Erreur DKS');
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Erreur HTTP ${response.status}`);
+      }
+      
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('❌ API Error:', error);
       throw error;
     }
   }
 
-  // --- AUTHENTIFICATION ---
+  // ==================== AUTHENTIFICATION ====================
   async login(credentials) {
-    const data = await this.request('/api/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-    if (data.success) this.setToken("session_dks_active");
+    const data = await this.request('/api/auth/login', { 
+      method: 'POST', 
+      body: JSON.stringify(credentials) 
+    });
+    if (data.success && data.token) {
+      this.setToken(data.token);
+      if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+    }
     return data;
   }
 
-  // --- CATÉGORIES ---
+  async logout() {
+    this.clearToken();
+  }
+
+  // ==================== CATÉGORIES ====================
   async getCategories() { 
     return this.request('/api/categories'); 
   }
   
   async addCategory(cat) { 
-    return this.request('/api/categories', { method: 'POST', body: JSON.stringify(cat) }); 
+    return this.request('/api/categories', { 
+      method: 'POST', 
+      body: JSON.stringify(cat) 
+    }); 
   }
   
   async deleteCategory(id) { 
-    return this.request(`/api/categories/${id}`, { method: 'DELETE' }); 
+    return this.request(`/api/categories/${id}`, {       method: 'DELETE' 
+    }); 
   }
 
-  // --- PRODUITS ---
-  async getProducts() { return this.request('/api/products'); }
-  async addProduct(formData) { return this.request('/api/products', { method: 'POST', body: formData }); }
-  async deleteProduct(id) { return this.request(`/api/products/${id}`, { method: 'DELETE' }); }
+  // ==================== PRODUITS ====================
+  
+  // 🔹 Lire tous les produits (filtrage publié/brouillon côté backend)
+  async getProducts() { 
+    return this.request('/api/products'); 
+  }
 
-  // --- PI & FEDAPAY ---
-  async approvePiPayment(paymentId) { return this.request('/api/pi/approve', { method: 'POST', body: JSON.stringify({ paymentId }) }); }
-  async completePiOrder(orderData) { return this.request('/api/orders/pi', { method: 'POST', body: JSON.stringify(orderData) }); }
-  async initiateMobileMoney(paymentData) { return this.request('/api/mobile-money/initiate', { method: 'POST', body: JSON.stringify(paymentData) }); }
-  async getOrders() { return this.request('/api/orders'); }
+  // 🔹 Créer un produit (JSON, pas FormData)
+  async addProduct(productData) { 
+    return this.request('/api/products', { 
+      method: 'POST', 
+      body: JSON.stringify(productData) // ✅ Envoie { name, price, category, published, ... }
+    }); 
+  }
+
+  // 🔹 MODIFIER un produit (NOUVEAU - requis pour édition + publication)
+  async updateProduct(id, productData) {
+    return this.request(`/api/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(productData)
+    });
+  }
+
+  // 🔹 Supprimer un produit
+  async deleteProduct(id) { 
+    return this.request(`/api/products/${id}`, { 
+      method: 'DELETE' 
+    }); 
+  }
+
+  // 🔹 Obtenir un produit par ID (optionnel mais utile)
+  async getProductById(id) {
+    return this.request(`/api/products/${id}`);
+  }
+
+  // ==================== COMMANDES ====================
+  async getOrders() { 
+    return this.request('/api/orders'); 
+  }
+  
+  async createOrder(orderData) {
+    return this.request('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData)
+    });
+  }
+  // ==================== PAIEMENTS PI & FEDAPAY ====================
+  async approvePiPayment(paymentId) { 
+    return this.request('/api/pi/approve', { 
+      method: 'POST', 
+      body: JSON.stringify({ paymentId }) 
+    }); 
+  }
+  
+  async completePiOrder(orderData) { 
+    return this.request('/api/orders/pi', { 
+      method: 'POST', 
+      body: JSON.stringify(orderData) 
+    }); 
+  }
+  
+  async initiateMobileMoney(paymentData) { 
+    return this.request('/api/mobile-money/initiate', { 
+      method: 'POST', 
+      body: JSON.stringify(paymentData) 
+    }); 
+  }
 }
 
 export const apiService = new ApiService();

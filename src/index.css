@@ -59,3 +59,24 @@ body {
     @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent;
   }
 }
+
+/* Scrollbar moderne pour la sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Pour Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
