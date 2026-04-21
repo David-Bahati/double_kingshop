@@ -1,6 +1,36 @@
-node_modules
-dist
-.env
-.env.local
-.DS_Store
+# 🔐 Environnement & Secrets
+.env*.local
+!.env.example
+*.pem
+*.key
+
+# 🗄️ Base de données SQLite (si locale)
+*.db
+*.sqlite
+*.sqlite3
+
+# 📁 Logs & Cache
+logs/
 *.log
+.pnp.*
+
+# 🚀 Build & Déploiement
+dist/
+build/
+.vercel/
+.netlify/
+
+# 🧪 Tests
+coverage/
+*.test-results.xml
+
+# 💻 IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 🍎 macOS
+.DS_Store
+Thumbs.db

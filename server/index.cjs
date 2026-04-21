@@ -1,4 +1,4 @@
-// server/index.js
+// server/index.cjs
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -101,6 +101,15 @@ async function initDb() {
             category TEXT,
             date TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        
+        CREATE TABLE IF NOT EXISTS taxes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            rate REAL NOT NULL,
+            type TEXT DEFAULT 'percentage',
+            active INTEGER DEFAULT 1,
+            createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+        );
     `);
 
     // Migration : ajouter published si n'existe pas
@@ -108,7 +117,6 @@ async function initDb() {
     const hasPublished = tableInfo.some(col => col.name === 'published');
     if (!hasPublished) {
         await db.exec("ALTER TABLE products ADD COLUMN published INTEGER DEFAULT 0");
-        // Marquer tous les produits existants comme publiés
         await db.exec("UPDATE products SET published = 1 WHERE published IS NULL");
         console.log("✅ Migration 'published' appliquée");
     }
@@ -126,7 +134,6 @@ initDb().catch(err => console.error("❌ Erreur DB:", err));
 
 // ==================== MIDDLEWARE D'AUTHENTIFICATION ====================
 
-// Middleware simple : vérifie le PIN via header Authorization
 const requireAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -138,17 +145,16 @@ const requireAuth = async (req, res, next) => {
         
         const user = await db.get('SELECT * FROM users WHERE pin = ?', [pin]);
         if (!user) {
-            return res.status(401).json({ error: 'PIN incorrect' });
-        }
+            return res.status(401).json({ error: 'PIN incorrect' });        }
         
         req.user = user;
         next();
     } catch (err) {
         console.error('Auth error:', err);
-        res.status(500).json({ error: 'Erreur d\'authentification' });    }
+        res.status(500).json({ error: 'Erreur d\'authentification' });
+    }
 };
 
-// Middleware pour vérifier le rôle admin
 const requireAdmin = (req, res, next) => {
     if (req.user?.role !== 'administrator') {
         return res.status(403).json({ error: 'Accès administrateur requis' });
@@ -161,7 +167,6 @@ const requireAdmin = (req, res, next) => {
 // 📦 Produits - Lecture publique (filtrage published)
 app.get('/api/products', async (req, res) => {
     try {
-        // 🔒 Filtrage : si pas d'admin, ne montrer que les publiés
         const authHeader = req.headers['authorization'];
         const pin = authHeader?.replace('Bearer ', '');
         const user = pin ? await db.get('SELECT role FROM users WHERE pin = ?', [pin]) : null;
@@ -176,13 +181,12 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-// 📦 Produit par ID (publique, mais seulement si publié)
+// 📦 Produit par ID
 app.get('/api/products/:id', async (req, res) => {
     try {
         const product = await db.get('SELECT * FROM products WHERE id = ?', [req.params.id]);
         if (!product) return res.status(404).json({ error: 'Produit non trouvé' });
         
-        // 🔒 Vérifier si publié (sauf si admin)
         const authHeader = req.headers['authorization'];
         const pin = authHeader?.replace('Bearer ', '');
         const user = pin ? await db.get('SELECT role FROM users WHERE pin = ?', [pin]) : null;
@@ -190,11 +194,11 @@ app.get('/api/products/:id', async (req, res) => {
         if (user?.role !== 'administrator' && !product.published) {
             return res.status(404).json({ error: 'Produit non trouvé' });
         }
-        
-        res.json(product);
+                res.json(product);
     } catch (error) {
         res.status(500).json({ error: 'Erreur serveur' });
-    }});
+    }
+});
 
 // 🗂️ Catégories - Lecture publique
 app.get('/api/categories', async (req, res) => {
@@ -206,7 +210,7 @@ app.get('/api/categories', async (req, res) => {
     }
 });
 
-// 🛒 Commandes - Lecture (pour historique client)
+// 🛒 Commandes - Lecture publique
 app.get('/api/orders', async (req, res) => {
     try {
         const orders = await db.all('SELECT * FROM orders ORDER BY createdAt DESC LIMIT 50');
@@ -218,12 +222,11 @@ app.get('/api/orders', async (req, res) => {
 
 // ==================== ROUTES PROTÉGÉES (Auth + Admin) ====================
 
-// ➕ Créer un produit (Admin uniquement)
+// ➕ Créer un produit (Admin)
 app.post('/api/products', requireAuth, requireAdmin, upload.single('image'), async (req, res) => {
     try {
         const { name, price, stock, category, description, published } = req.body;
         
-        // Validation
         if (!name?.trim() || !price || !category) {
             return res.status(400).json({ error: 'Nom, prix et catégorie sont requis' });
         }
@@ -240,24 +243,22 @@ app.post('/api/products', requireAuth, requireAdmin, upload.single('image'), asy
         const newProduct = await db.get('SELECT * FROM products WHERE id = ?', [result.lastID]);
         res.status(201).json(newProduct);
     } catch (error) {
-        console.error('Error creating product:', error);
-        res.status(500).json({ error: error.message });
+        console.error('Error creating product:', error);        res.status(500).json({ error: error.message });
     }
 });
-// ✏️ Modifier un produit (Admin uniquement)
+
+// ✏️ Modifier un produit (Admin)
 app.put('/api/products/:id', requireAuth, requireAdmin, upload.single('image'), async (req, res) => {
     try {
         const { id } = req.params;
         const { name, price, stock, category, description, published } = req.body;
         
-        // Récupérer l'image existante
         const current = await db.get('SELECT image FROM products WHERE id = ?', [id]);
         if (!current) return res.status(404).json({ error: 'Produit non trouvé' });
         
         const imagePath = req.file ? `/uploads/${req.file.filename}` : current.image;
         const publishedInt = published !== undefined ? (published === 'true' || published === true ? 1 : 0) : undefined;
         
-        // Construire la requête dynamiquement pour ne mettre à jour que les champs fournis
         const updates = [];
         const values = [];
         
@@ -284,15 +285,15 @@ app.put('/api/products/:id', requireAuth, requireAdmin, upload.single('image'), 
     }
 });
 
-// 👁️ Publier/Dépublier un produit (Admin uniquement)
+// 👁️ Publier/Dépublier un produit (Admin)
 app.patch('/api/products/:id/publish', requireAuth, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { published } = req.body;
         
         if (published === undefined) {
-            return res.status(400).json({ error: 'Champ "published" requis' });
-        }        
+            return res.status(400).json({ error: 'Champ "published" requis' });        }
+        
         const publishedInt = published === true || published === 'true' ? 1 : 0;
         await db.run('UPDATE products SET published = ? WHERE id = ?', [publishedInt, id]);
         
@@ -303,10 +304,9 @@ app.patch('/api/products/:id/publish', requireAuth, requireAdmin, async (req, re
     }
 });
 
-// 🗑️ Supprimer un produit (Admin uniquement)
+// 🗑️ Supprimer un produit (Admin)
 app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
     try {
-        // Supprimer aussi le fichier image si existant
         const product = await db.get('SELECT image FROM products WHERE id = ?', [req.params.id]);
         if (product?.image?.startsWith('/uploads/')) {
             const filePath = path.join(__dirname, product.image);
@@ -320,7 +320,7 @@ app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// 🗂️ Catégories - CRUD (Admin uniquement)
+// 🗂️ Catégories - CRUD (Admin)
 app.post('/api/categories', requireAuth, requireAdmin, async (req, res) => {
     try {
         const { name, description } = req.body;
@@ -353,7 +353,6 @@ app.put('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.delete('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
     try {
-        // Vérifier si des produits utilisent cette catégorie
         const count = await db.get('SELECT COUNT(*) as count FROM products WHERE category = (SELECT name FROM categories WHERE id = ?)', [req.params.id]);
         if (count.count > 0) {
             return res.status(400).json({ error: 'Impossible : des produits utilisent cette catégorie' });
@@ -365,7 +364,7 @@ app.delete('/api/categories/:id', requireAuth, requireAdmin, async (req, res) =>
     }
 });
 
-// 👥 Utilisateurs - CRUD (Admin uniquement)
+// 👥 Utilisateurs - CRUD (Admin)
 app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
     try {
         const users = await db.all('SELECT id, name, role, pin, location, createdAt FROM users ORDER BY name');
@@ -388,11 +387,47 @@ app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
+// ✏️ MODIFIER un utilisateur (Admin) - NOUVEAU
+app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;        const { name, role, pin, location } = req.body;
+        
+        if (!name?.trim() && !role && !pin && !location) {
+            return res.status(400).json({ error: 'Au moins un champ à mettre à jour est requis' });
+        }
+        
+        if (pin) {
+            const existing = await db.get('SELECT id FROM users WHERE pin = ? AND id != ?', [pin, id]);
+            if (existing) {
+                return res.status(409).json({ error: 'Ce PIN est déjà utilisé par un autre utilisateur' });
+            }
+        }
+        
+        const updates = [];
+        const values = [];
+        
+        if (name !== undefined) { updates.push('name = ?'); values.push(name.trim()); }
+        if (role !== undefined) { updates.push('role = ?'); values.push(role); }
+        if (pin !== undefined) { updates.push('pin = ?'); values.push(pin); }
+        if (location !== undefined) { updates.push('location = ?'); values.push(location || 'Bunia'); }
+        
+        values.push(id);
+        
+        await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
+        
+        const updated = await db.get('SELECT id, name, role, location, createdAt FROM users WHERE id = ?', [id]);
+        res.json({ success: true, user: updated });
+    } catch (error) {
+        console.error('Erreur modification utilisateur:', error);
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+    }
+});
+
 app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
     try {
-        const user = await db.get('SELECT role FROM users WHERE id = ?', [req.params.id]);        if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        const user = await db.get('SELECT role FROM users WHERE id = ?', [req.params.id]);
+        if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
         
-        // Empêcher la suppression du dernier admin
         if (user.role === 'administrator') {
             const adminCount = await db.get("SELECT COUNT(*) as count FROM users WHERE role = 'administrator'");
             if (adminCount.count <= 1) {
@@ -404,10 +439,9 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
-    }
-});
+    }});
 
-// 💸 Dépenses - CRUD (Admin uniquement)
+// 💸 Dépenses - CRUD (Auth)
 app.get('/api/expenses', requireAuth, async (req, res) => {
     try {
         const expenses = await db.all('SELECT * FROM expenses ORDER BY date DESC');
@@ -428,6 +462,35 @@ app.post('/api/expenses', requireAuth, async (req, res) => {
     }
 });
 
+// ✏️ MODIFIER une dépense (Auth) - NOUVEAU
+app.put('/api/expenses/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { description, amount, category, date } = req.body;
+        
+        if (!description && amount === undefined && !category && !date) {
+            return res.status(400).json({ error: 'Au moins un champ à mettre à jour est requis' });
+        }
+        
+        const updates = [];
+        const values = [];
+        
+        if (description !== undefined) { updates.push('description = ?'); values.push(description.trim()); }
+        if (amount !== undefined) { updates.push('amount = ?'); values.push(parseFloat(amount)); }
+        if (category !== undefined) { updates.push('category = ?'); values.push(category.trim()); }
+        if (date !== undefined) { updates.push('date = ?'); values.push(date); }
+        
+        values.push(id);
+        
+        await db.run(`UPDATE expenses SET ${updates.join(', ')} WHERE id = ?`, values);
+        
+        const updated = await db.get('SELECT * FROM expenses WHERE id = ?', [id]);
+        res.json({ success: true, expense: updated });
+    } catch (error) {
+        console.error('Erreur modification dépense:', error);
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });    }
+});
+
 app.delete('/api/expenses/:id', requireAuth, async (req, res) => {
     try {
         await db.run('DELETE FROM expenses WHERE id = ?', [req.params.id]);
@@ -437,17 +500,85 @@ app.delete('/api/expenses/:id', requireAuth, async (req, res) => {
     }
 });
 
+// 💰 Taxes - CRUD (Admin) - NOUVEAU
+app.get('/api/taxes', requireAuth, async (req, res) => {
+    try {
+        const taxes = await db.all('SELECT * FROM taxes ORDER BY name');
+        res.json(taxes);
+    } catch (error) {
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+    }
+});
+
+app.post('/api/taxes', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { name, rate, type, active } = req.body;
+        
+        if (!name?.trim() || rate === undefined) {
+            return res.status(400).json({ error: 'Nom et taux sont requis' });
+        }
+        
+        const result = await db.run(
+            'INSERT INTO taxes (name, rate, type, active) VALUES (?, ?, ?, ?)',
+            [name.trim(), rate, type || 'percentage', active !== false ? 1 : 0]
+        );
+        const newTax = await db.get('SELECT * FROM taxes WHERE id = ?', [result.lastID]);
+        res.status(201).json(newTax);
+    } catch (error) {
+        if (error.message?.includes('UNIQUE')) {
+            return res.status(409).json({ error: 'Cette taxe existe déjà' });
+        }
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+    }
+});
+
+app.put('/api/taxes/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, rate, type, active } = req.body;
+        
+        const updates = [];
+        const values = [];
+        
+        if (name !== undefined) { updates.push('name = ?'); values.push(name.trim()); }
+        if (rate !== undefined) { updates.push('rate = ?'); values.push(rate); }
+        if (type !== undefined) { updates.push('type = ?'); values.push(type); }
+        if (active !== undefined) { updates.push('active = ?'); values.push(active ? 1 : 0); }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+        }
+        
+        values.push(id);
+        await db.run(`UPDATE taxes SET ${updates.join(', ')} WHERE id = ?`, values);
+        
+        const updated = await db.get('SELECT * FROM taxes WHERE id = ?', [id]);
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+    }
+});
+
+app.delete('/api/taxes/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        await db.run('DELETE FROM taxes WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+    }
+});
+
 // 🔐 Authentification
 app.post('/api/auth/login', async (req, res) => {
-    try {        const { pin } = req.body;
+    try {
+        const { pin } = req.body;
         if (!pin) return res.status(400).json({ error: 'PIN requis' });
         
         const user = await db.get('SELECT id, name, role, pin, location FROM users WHERE pin = ?', [pin]);
         if (user) {
-            // Retourner un "token" simple (le PIN) + les infos utilisateur
             res.json({ 
                 success: true, 
-                token: pin, // Dans une vraie app, utiliser JWT ici
+                token: pin,
                 user: { id: user.id, name: user.name, role: user.role, location: user.location }
             });
         } else {
@@ -484,18 +615,17 @@ app.post('/api/orders/pi', async (req, res) => {
     try {
         const { paymentId, txid, amount, items } = req.body;
         
-        // Compléter le paiement Pi
         await axios.post(
             `https://api.minepi.com/v2/payments/${paymentId}/complete`, 
             { txid }, 
-            {                 headers: { 
+            { 
+                headers: { 
                     'Authorization': `Key ${PI_KEY}`, 
                     'Content-Type': 'application/json' 
                 } 
             }
         );
         
-        // Transaction DB : mettre à jour les stocks + créer la commande
         await db.run('BEGIN TRANSACTION');
         try {
             for (const item of items) {
@@ -527,8 +657,8 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
         
         const transaction = await Transaction.create({
             description: `Achat DKS - ${provider}`,
-            amount: Math.round(amountUSD * 100), // En centimes
-            currency: { iso: 'CDF' }, // Adapter selon ta config FedaPay
+            amount: Math.round(amountUSD * 100),
+            currency: { iso: 'CDF' },
             customer: { 
                 firstname: 'Client', 
                 lastname: 'DKS', 
@@ -541,6 +671,77 @@ app.post('/api/mobile-money/initiate', async (req, res) => {
     } catch (error) {
         console.error('FedaPay error:', error);
         res.status(500).json({ error: 'Erreur FedaPay: ' + error.message });
+    }
+});
+
+// 🔍 VÉRIFIER statut paiement FedaPay (Polling) - NOUVEAU
+app.get('/api/mobile-money/verify/:id', requireAuth, async (req, res) => {
+    try {
+        const { id: transactionId } = req.params;
+        
+        const transaction = await Transaction.find(transactionId);
+        
+        if (!transaction) {
+            return res.status(404).json({ error: 'Transaction non trouvée' });
+        }
+        
+        await transaction.refresh();
+        
+        if (transaction.status === 'completed' || transaction.status === 'success') {
+            const existingOrder = await db.get('SELECT id FROM orders WHERE txid = ? OR id = ?', [transactionId, transactionId]);
+            
+            if (!existingOrder) {
+                await db.run(
+                    `INSERT INTO orders (id, txid, customerName, total, items, status, paymentMethod, createdAt) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        transactionId,
+                        transactionId,
+                        'Client Mobile Money',
+                        transaction.amount / 100,
+                        '[]',
+                        'completed',
+                        'mobile_money',
+                        transaction.created_at || new Date().toISOString()
+                    ]
+                );
+            } else {
+                await db.run('UPDATE orders SET status = ? WHERE id = ? OR txid = ?', ['completed', transactionId, transactionId]);
+            }
+        }
+        
+        res.json({
+            status: transaction.status,
+            message: transaction.status_message || '',
+            amount: transaction.amount,
+            currency: transaction.currency?.iso || 'CDF',
+            created_at: transaction.created_at,
+            updated_at: transaction.updated_at
+        });
+    } catch (error) {
+        console.error('Erreur vérification FedaPay:', error);
+        res.status(500).json({ error: 'Erreur vérification: ' + error.message });
+    }
+});
+
+// 🔄 METTRE À JOUR statut commande (Admin) - NOUVEAU
+app.patch('/api/orders/:id/status', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        
+        const validStatuses = ['pending', 'completed', 'cancelled', 'failed', 'refunded'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ error: 'Statut invalide. Valeurs acceptées: ' + validStatuses.join(', ') });
+        }
+        
+        await db.run('UPDATE orders SET status = ? WHERE id = ?', [status, id]);
+        
+        const updated = await db.get('SELECT * FROM orders WHERE id = ?', [id]);
+        res.json({ success: true, order: updated });
+    } catch (error) {
+        console.error('Erreur mise à jour statut commande:', error);
+        res.status(500).json({ error: 'Erreur serveur: ' + error.message });
     }
 });
 
@@ -575,6 +776,46 @@ app.get('/api/stats/dashboard', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
+// ==================== UTILITAIRES ====================
+
+// 🏥 Health check - NOUVEAU
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: db ? 'connected' : 'disconnected',
+        version: process.env.npm_package_version || '1.0.0'
+    });
+});
+
+// 💾 Backup base de données (Admin) - NOUVEAU
+app.post('/api/backup', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const dbPath = path.join(__dirname, 'dks_database.db');
+        const backupDir = path.join(__dirname, 'backups');
+        
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(backupDir, `dks_backup_${timestamp}.db`);
+        
+        fs.copyFileSync(dbPath, backupPath);
+        
+        res.json({
+            success: true,
+            message: 'Backup créé avec succès',
+            backupFile: backupPath,
+            size: fs.statSync(backupPath).size
+        });
+    } catch (error) {
+        console.error('Erreur backup:', error);
+        res.status(500).json({ error: 'Erreur lors de la sauvegarde: ' + error.message });
+    }
+});
+
 // ==================== SERVING FRONTEND (Production) ====================
 
 const distPath = path.join(__dirname, '../dist');
@@ -582,7 +823,6 @@ if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
     
     app.get('*', (req, res) => {
-        // Ne pas servir index.html pour les routes API
         if (req.url.startsWith('/api')) {
             return res.status(404).json({ error: 'Route API non trouvée' });
         }
