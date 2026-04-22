@@ -19,8 +19,8 @@
     "server": "node server/index.cjs",
     "server:dev": "nodemon --watch server --ext js,cjs,json server/index.cjs",
     "client:build": "vite build",
-    "build": "npx pnpm install && npx pnpm run client:build",
-    "install:all": "npx pnpm install",
+    "build": "vite build",
+    "install:all": "pnpm install",
     "prepare": "echo 'Skip husky on Railway'",
     "clean": "rm -rf dist node_modules pnpm-lock.yaml",
     "db:migrate": "node server/scripts/migrate-db.cjs"
@@ -41,12 +41,14 @@
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "fedapay": "^1.2.5",
-    "sweetalert2": "^11.11.0"
+    "sweetalert2": "^11.11.0",
+    "pi-sdk": "latest"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
-    "@vite-pwa/assets-generator": "^0.2.4",
+    "vite-plugin-node-polyfills": "^0.21.0",
     "vite-plugin-pwa": "^0.20.0",
+    "@vite-pwa/assets-generator": "^0.2.4",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
