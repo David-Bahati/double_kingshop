@@ -3,10 +3,14 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
-const isProduction = process.env.NODE_ENV === 'production';
-const API_URL = process.env.VITE_API_URL || 'doublekingshop-production-5fdb.up.railway.app';
+// ✅ Correction de l'URL avec HTTPS et détection d'environnement améliorée
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+const API_URL = process.env.VITE_API_URL || 'https://doublekingshop-production-5fdb.up.railway.app/api';
 
 export default defineConfig({
+  // ✅ Indique à Vite que l'application est à la racine du domaine
+  base: '/', 
+
   plugins: [
     react(),
     // ✅ Indispensable pour FedaPay (gère crypto, path, etc.)
@@ -53,10 +57,10 @@ export default defineConfig({
 
   build: {
     outDir: 'dist',
+    emptyOutDir: true, // Nettoie le dossier dist avant chaque build
     minify: 'terser',
     rollupOptions: {
       output: {
-        // ✅ Simplification pour Railway : on ne force pas pi-sdk en chunk séparé
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('react')) return 'vendor-core';
@@ -70,10 +74,10 @@ export default defineConfig({
     }
   },
 
-  // ✅ Important : définit global pour les vieux SDK et évite les erreurs process
+  // ✅ Important pour les SDK Pi et FedaPay
   define: {
     'global': 'globalThis',
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+    'process.env': process.env, // Transmet toutes les variables d'env
     'process.env.VITE_API_URL': JSON.stringify(API_URL)
   }
 });

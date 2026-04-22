@@ -104,6 +104,7 @@ class ErrorBoundary extends React.Component {
 
 // 🎯 Initialisation de l'application
 const initializeApp = async () => {
+  alert("Vérification système OK, lancement de l'app..."); 
   // 🎯 Préchargement des ressources critiques
   if ('connection' in navigator) {
     const connection = navigator.connection;
