@@ -844,7 +844,7 @@ async function startServer() {
 
         // 3. Lancement du serveur sur 0.0.0.0
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Double King Shop Backend prêt sur le port ${PORT}`);
+            console.log(`💎🚀 Double King Shop Backend prêt sur le port ${PORT}`);
             console.log(`📁 Uploads: ${uploadDir}`);
             console.log(`🗄️ Database: ${path.join(__dirname, 'dks_database.db')}`);
         });

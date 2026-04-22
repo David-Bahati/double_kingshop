@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 const isProduction = process.env.NODE_ENV === 'production';
-const API_URL = process.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = process.env.VITE_API_URL || 'doublekingshop-production-5fdb.up.railway.app';
 
 export default defineConfig({
   plugins: [
