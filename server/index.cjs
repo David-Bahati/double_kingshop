@@ -47,7 +47,8 @@ const upload = multer({
     }
 });
 
-// --- DATABASE INIT ---let db;
+// --- DATABASE INIT ---
+let db;
 async function initDb() {
     db = await open({
         filename: path.join(__dirname, 'dks_database.db'),
@@ -96,7 +97,8 @@ async function initDb() {
         );
         
         CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,            description TEXT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,            
+            description TEXT,
             amount REAL,
             category TEXT,
             date TEXT DEFAULT CURRENT_TIMESTAMP
@@ -116,8 +118,7 @@ async function initDb() {
     const tableInfo = await db.all("PRAGMA table_info(products)");
     const hasPublished = tableInfo.some(col => col.name === 'published');
     if (!hasPublished) {
-        await db.exec("ALTER TABLE products ADD COLUMN published INTEGER DEFAULT 0");
-        await db.exec("UPDATE products SET published = 1 WHERE published IS NULL");
+        await db.exec("ALTER TABLE products ADD COLUMN published INTEGER DEFAULT 1");
         console.log("✅ Migration 'published' appliquée");
     }
 
@@ -130,7 +131,8 @@ async function initDb() {
 
     console.log("🗄️ Base de données DKS prête");
 }
-initDb().catch(err => console.error("❌ Erreur DB:", err));
+// 🚨 ON NE LANCE PLUS initDb() ICI ! 
+// C'est la fonction startServer() en bas du fichier qui s'en chargera.
 
 // ==================== MIDDLEWARE D'AUTHENTIFICATION ====================
 
@@ -818,29 +820,39 @@ app.post('/api/backup', requireAuth, requireAdmin, async (req, res) => {
 
 // ==================== SERVING FRONTEND (Production) ====================
 
-const distPath = path.join(__dirname, '../dist');
-if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    
-    app.get('*', (req, res) => {
-        if (req.url.startsWith('/api')) {
-            return res.status(404).json({ error: 'Route API non trouvée' });
+c// ==================== DÉMARRAGE SÉCURISÉ DKS ====================
+
+async function startServer() {
+    try {
+        // 1. On attend d'abord que SQLite soit prêt
+        await initDb(); 
+
+        // 2. Configuration du Frontend (Dist)
+        const distPath = path.join(__dirname, '../dist');
+        if (fs.existsSync(distPath)) {
+            app.use(express.static(distPath));
+            
+            app.get('*', (req, res) => {
+                // Si la route commence par /api mais n'existe pas, on renvoie 404
+                if (req.url.startsWith('/api')) {
+                    return res.status(404).json({ error: 'Route API non trouvée' });
+                }
+                // Sinon, on sert l'application React
+                res.sendFile(path.join(distPath, 'index.html'));
+            });
         }
-        res.sendFile(path.join(distPath, 'index.html'));
-    });
+
+        // 3. Lancement du serveur sur 0.0.0.0
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Double King Shop Backend prêt sur le port ${PORT}`);
+            console.log(`📁 Uploads: ${uploadDir}`);
+            console.log(`🗄️ Database: ${path.join(__dirname, 'dks_database.db')}`);
+        });
+    } catch (err) {
+        console.error("❌ Échec critique au démarrage du serveur DKS:", err);
+        process.exit(1);
+    }
 }
 
-// ==================== START SERVER ====================
-
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Double King Shop Backend prêt sur http://localhost:${PORT}`);
-    console.log(`📁 Uploads: ${uploadDir}`);
-    console.log(`🗄️ Database: ${path.join(__dirname, 'dks_database.db')}`);
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('\n🛑 Fermeture propre...');
-    if (db) await db.close();
-    process.exit(0);
-});
+// Lancement de la fonction globale
+startServer();
