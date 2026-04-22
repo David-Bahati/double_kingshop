@@ -7,7 +7,7 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 
 // 🎯 Providers (ordre important : Notification → Theme → Auth → Cart)
-import { NotificationProvider, NotificationContainer, GlobalStyles } from './context/NotificationContext';
+import { NotificationProvider, NotificationContainer } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
