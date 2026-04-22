@@ -11,7 +11,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import ProductCard from '../components/Product/ProductCard';
 import QuickViewModal from '../components/Product/QuickViewModal';
-import apiService from '../services/api';
+import { apiService } from '../services/api'; // ✅ Correction : Import nommé
 
 const Home = () => {
   // --- ÉTATS PRINCIPAUX ---
@@ -38,47 +38,55 @@ const Home = () => {
 
   // 🎯 Chargement initial des données
   useEffect(() => {
+    let isMounted = true;
+
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        // Appel simultané des produits et catégories
         const [prodData, catData] = await Promise.all([
           apiService.getProducts(),
           apiService.getCategories()
         ]);
         
+        if (!isMounted) return;
+
         // 🔒 Filtrage : seuls les produits publiés sont visibles (sauf admin)
-        const visibleProducts = isAdmin           ? (prodData || []) 
-          : (prodData || []).filter(p => p.published === true);
+        const allProducts = Array.isArray(prodData) ? prodData : (prodData?.products || []);
+        const visibleProducts = isAdmin 
+          ? allProducts 
+          : allProducts.filter(p => p.published === true);
         
         setProducts(visibleProducts);
-        setCategories(catData || []);
+        setCategories(Array.isArray(catData) ? catData : []);
         setError(null);
       } catch (err) {
         console.error('Erreur DKS:', err);
-        setError('Impossible de charger le catalogue.');
+        if (isMounted) {
+          setError(`Connexion impossible : ${err.message}`);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
     loadInitialData();
+    return () => { isMounted = false; };
   }, [isAdmin]);
 
   // 🎯 Filtrage combiné : Recherche + Catégorie
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const name = product.name?.toLowerCase() || "";
+      const desc = product.description?.toLowerCase() || "";
+      const search = searchTerm.toLowerCase();
+      
+      const matchesSearch = name.includes(search) || desc.includes(search);
       const matchesCategory = selectedCategory === "Tous" || product.category === selectedCategory;
+      
       return matchesSearch && matchesCategory;
     });
   }, [products, searchTerm, selectedCategory]);
-
-  // 🎯 Handlers
-  const handleQuickView = (product) => setQuickViewProduct(product);
-  const handleAddToCart = async (product) => {
-    // La logique d'ajout est gérée par useCart() dans ProductCard
-    // Ici on peut ajouter un feedback si besoin
-  };
 
   const openAiAssistant = () => {
     const width = 450, height = 650;
@@ -94,10 +102,12 @@ const Home = () => {
   // 🎯 Rendu Loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="animate-spin mx-auto mb-4 text-blue-600" size={48} />          <p className="text-slate-500 font-medium">Chargement de Double King Shop...</p>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <Loader className="animate-spin mb-4 text-blue-600" size={48} />
+        <p className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em]">
+          Double King Shop • Bunia
+        </p>
+        <p className="text-slate-400 text-xs mt-2 italic">Chargement du catalogue...</p>
       </div>
     );
   }
@@ -106,15 +116,17 @@ const Home = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-sm border border-amber-100">
-          <AlertCircle className="mx-auto mb-4 text-amber-500" size={48} />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Oups !</h2>
-          <p className="text-slate-500 mb-6">{error}</p>
+        <div className="bg-white rounded-[2.5rem] p-8 max-w-md text-center shadow-xl border border-amber-100">
+          <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="text-amber-500" size={32} />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Oups !</h2>
+          <p className="text-slate-500 text-sm mb-6 leading-relaxed">{error}</p>
           <button 
             onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition"
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 transition shadow-lg shadow-blue-200"
           >
-            Réessayer
+            Réessayer la connexion
           </button>
         </div>
       </div>
@@ -132,11 +144,9 @@ const Home = () => {
           </Link>
 
           <div className="flex items-center gap-2 md:gap-4">
-            {/* Panier */}
             <button 
               onClick={() => setIsCartOpen(!isCartOpen)}
               className="relative p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-blue-50 transition-all"
-              aria-label="Ouvrir le panier"
             >
               <ShoppingCart size={22} />
               {getCartCount() > 0 && (
@@ -145,193 +155,58 @@ const Home = () => {
                 </span>
               )}
             </button>
-                        {/* Admin Link */}
             <Link 
               to="/login" 
-              className="hidden sm:flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
+              className="hidden sm:flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-blue-700"
             >
               <UserCircle size={18} /> Administration
             </Link>
-            
-            {/* Mobile Menu Toggle */}
-            <button className="md:hidden p-2" onClick={() => setIsMenuOpen(true)} aria-label="Menu">
+            <button className="md:hidden p-2" onClick={() => setIsMenuOpen(true)}>
               <Menu size={24} />
             </button>
           </div>
         </div>
       </nav>
 
-      {/* --- MENU MOBILE --- */}
-      {isMenuOpen && (
-        <>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60]" onClick={() => setIsMenuOpen(false)} />
-          <div className="fixed left-0 top-0 h-full w-72 bg-white z-[70] shadow-2xl p-6 animate-slideInLeft">
-            <div className="flex justify-between items-center mb-10">
-              <span className="font-black text-blue-600 italic uppercase">DKS Menu</span>
-              <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-slate-50 rounded-full hover:bg-slate-100 transition">
-                <X size={20}/>
-              </button>
-            </div>
-            <nav className="flex flex-col gap-4">
-              <Link 
-                to="/login" 
-                onClick={() => setIsMenuOpen(false)} 
-                className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 hover:bg-slate-100 transition"
-              >
-                <UserCircle size={20} /> Administration
-              </Link>
-              <Link 
-                to="/products" 
-                onClick={() => setIsMenuOpen(false)} 
-                className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 hover:bg-slate-100 transition"
-              >
-                <ShoppingCart size={20} /> Catalogue Complet
-              </Link>
-            </nav>
-          </div>
-        </>
-      )}
-
       {/* --- SECTION HÉROS --- */}
-      <section className="relative h-[70vh] flex items-center justify-center overflow-hidden bg-slate-900 pt-16">
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 to-transparent z-10" />        <img 
+      <section className="relative h-[60vh] flex items-center justify-center overflow-hidden bg-slate-900 pt-16">
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 to-transparent z-10" />
+        <img 
           src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80" 
           className="absolute inset-0 w-full h-full object-cover opacity-40"
-          alt="IT Equipment Bunia"
+          alt="IT Equipment"
         />
-        <div className="relative z-20 max-w-4xl px-6 text-center lg:text-left lg:ml-[-20%]">
-          <span className="inline-block bg-blue-500/20 text-blue-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 border border-blue-500/30 backdrop-blur-sm">
-            Double King Shop • Bunia
+        <div className="relative z-20 max-w-4xl px-6 text-center">
+          <span className="inline-block bg-blue-500/20 text-blue-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 border border-blue-500/30">
+            Bunia • Ituri • RDC
           </span>
-          <h2 className="text-5xl md:text-6xl font-black text-white leading-[1.1] mb-8 tracking-tighter uppercase italic">
+          <h2 className="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-8 tracking-tighter uppercase italic">
             Qualité informatique <br/> 
-            <span className="text-blue-500">au cœur de l'Ituri.</span>
+            <span className="text-blue-500">au meilleur prix.</span>
           </h2>
-          <a href="#products" className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-50 transition-all shadow-xl inline-block hover:shadow-2xl">
-            Découvrir le stock
+          <a href="#products" className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-50 shadow-xl inline-block transition-transform active:scale-95">
+            Voir le stock
           </a>
         </div>
       </section>
 
-      {/* --- PANIER LATÉRAL --- */}
-      {isCartOpen && (
-        <>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60]" onClick={() => setIsCartOpen(false)} />
-          <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-[70] shadow-2xl p-8 flex flex-col animate-slideInRight">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Mon Panier</h2>
-              <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar">
-              {cartItems.length === 0 ? (
-                <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                  <ShoppingCart size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Le panier est vide</p>
-                  <button onClick={() => setIsCartOpen(false)} className="mt-4 text-blue-600 font-bold text-sm hover:underline">
-                    Continuer mes achats →
-                  </button>
-                </div>
-              ) : (
-                cartItems.map(item => (
-                  <div key={item.id} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex justify-between items-center hover:border-blue-200 transition">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-slate-900 truncate">{item.name}</p>
-                      <p className="text-blue-600 text-sm font-black">{item.price?.toFixed(2)} $</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1.5 bg-white rounded-lg hover:bg-slate-100 transition">
-                        <Minus size={14}/>                      </button>
-                      <span className="font-black w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1.5 bg-white rounded-lg hover:bg-slate-100 transition">
-                        <Plus size={14}/>
-                      </button>
-                      <button onClick={() => removeFromCart(item.id)} className="ml-2 p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            
-            {cartItems.length > 0 && (
-              <div className="mt-8 pt-8 border-t border-slate-100">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Total à payer</span>
-                  <span className="text-3xl font-black text-slate-900">{getCartTotal().toFixed(2)} $</span>
-                </div>
-                <Link 
-                  to="/checkout" 
-                  onClick={() => setIsCartOpen(false)} 
-                  className="block py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-center shadow-lg hover:bg-blue-700 transition"
-                >
-                  Valider la commande
-                </Link>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* --- SECTION PRODUITS --- */}
-      <main id="products" className="max-w-7xl mx-auto px-4 py-20">
-        
-        {/* Recherche */}
+      {/* --- GRILLE PRODUITS --- */}
+      <main id="products" className="max-w-7xl mx-auto px-4 py-12">
         <div className="relative max-w-md mx-auto mb-10">
           <input 
             type="text" 
             placeholder="Chercher un accessoire..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 rounded-3xl border-2 border-slate-100 focus:border-blue-600 outline-none transition-all shadow-sm font-medium bg-white"
+            className="w-full pl-12 pr-4 py-4 rounded-[2rem] border-2 border-white focus:border-blue-600 outline-none shadow-sm font-medium"
           />
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         </div>
 
-        {/* Filtres Catégories (Scroll Horizontal) */}
-        <div className="flex gap-3 overflow-x-auto pb-8 mb-8 no-scrollbar scroll-smooth px-2">          <button
-            onClick={() => setSelectedCategory("Tous")}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
-              selectedCategory === "Tous" 
-              ? 'bg-slate-900 text-white shadow-xl border-transparent' 
-              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-            }`}
-          >
-            Tous
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.name)}
-              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
-                selectedCategory === cat.name 
-                ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 border-transparent' 
-                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Grille Produits */}
         {filteredProducts.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+          <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
             <AlertCircle className="mx-auto mb-4 text-slate-300" size={48} />
-            <p className="text-slate-400 font-bold uppercase tracking-widest">
-              {searchTerm ? `Aucun résultat pour "${searchTerm}"` : 'Aucun produit dans cette catégorie'}
-            </p>
-            {(searchTerm || selectedCategory !== "Tous") && (
-              <button 
-                onClick={() => { setSearchTerm(""); setSelectedCategory("Tous"); }}
-                className="mt-4 text-blue-600 font-bold text-sm hover:underline"
-              >
-                Réinitialiser les filtres
-              </button>
-            )}
+            <p className="text-slate-400 font-bold uppercase tracking-widest">Aucun produit trouvé</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -339,56 +214,41 @@ const Home = () => {
               <ProductCard 
                 key={product.id} 
                 product={product} 
-                onQuickView={handleQuickView}
-                showAdminActions={false}
-              />            ))}
+                onQuickView={setQuickViewProduct}
+              />
+            ))}
           </div>
-        )}
-        
-        {/* Badge "Produits publiés" pour admin */}
-        {isAdmin && products.length > 0 && (
-          <p className="text-center text-[10px] text-slate-400 mt-8">
-            {products.filter(p => p.published).length}/{products.length} produits publiés • 
-            {products.filter(p => !p.published).length} en brouillon
-          </p>
         )}
       </main>
 
-      {/* --- FOOTER SIMPLE --- */}
-      <footer className="bg-slate-900 text-slate-400 py-8 text-center text-[10px] uppercase tracking-wider">
-        <p>© {new Date().getFullYear()} Double King Shop • Bunia, Ituri</p>
-        <p className="mt-1 text-slate-500">Expert en matériel informatique professionnel</p>
+      {/* --- FOOTER --- */}
+      <footer className="bg-slate-900 text-slate-500 py-10 text-center text-[10px] uppercase tracking-widest">
+        <p>© {new Date().getFullYear()} Double King Shop • Bunia</p>
       </footer>
 
-      {/* --- BOUTON IA ASSISTANT --- */}
+      {/* --- BOUTON IA --- */}
       {!isCartOpen && (
         <div className="fixed bottom-6 right-6 z-[100]">
           <button 
             onClick={openAiAssistant}
-            className="group flex items-center gap-3 bg-slate-900 text-white p-2 pr-6 rounded-full shadow-2xl hover:scale-105 transition-all border border-white/10 hover:shadow-blue-500/20"
-            aria-label="Ouvrir l'assistant IA"
+            className="bg-slate-900 text-white p-4 rounded-full shadow-2xl border border-white/10 hover:scale-110 transition-transform"
           >
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-3 rounded-full shadow-lg">
-              <Sparkles size={18} className="text-yellow-300" />
-            </div>
-            <div className="text-left leading-none hidden sm:block">
-              <p className="text-[9px] font-black text-blue-400 uppercase tracking-tighter">Support 24/7</p>
-              <p className="text-xs font-bold uppercase">Assistant IA</p>
-            </div>
+            <Sparkles size={24} className="text-yellow-400" />
           </button>
         </div>
       )}
 
-      {/* --- MODAL QUICK VIEW --- */}
-      <QuickViewModal 
-        product={quickViewProduct}
-        isOpen={!!quickViewProduct}
-        onClose={() => setQuickViewProduct(null)}
-        onAddToCart={handleAddToCart}
-        isAdmin={isAdmin}
-      />
-
+      {/* --- MODAL --- */}
+      {quickViewProduct && (
+        <QuickViewModal 
+          product={quickViewProduct}
+          isOpen={!!quickViewProduct}
+          onClose={() => setQuickViewProduct(null)}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   );
 };
+
 export default Home;
