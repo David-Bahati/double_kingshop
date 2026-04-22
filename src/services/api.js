@@ -1,16 +1,20 @@
 // src/services/api.js
 
-// 🔧 URL de l'API : utilise une variable d'environnement avec fallback
-const API_BASE_URL = import.meta.env?.VITE_API_URL 
-  || process.env?.REACT_APP_API_URL 
-  || 'https://doublekingshop-production-5fdb.up.railway.app/api';
+/**
+ * 🎯 CONFIGURATION DE L'URL API
+ * Correction : On s'assure que l'URL de base ne finit pas par /api
+ * car vos méthodes le rajoutent déjà.
+ */
+const API_BASE_URL = 
+  import.meta.env?.VITE_API_URL?.replace(/\/api$/, '') || 
+  'https://doublekingshop-production-5fdb.up.railway.app';
 
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
   }
 
-  // ==================== GESTION DU TOKEN ====================
+  // ==================== GESTION DU TOKEN & USER ====================
   
   setToken(token) {
     if (token) localStorage.setItem('token', token);
@@ -21,8 +25,10 @@ class ApiService {
   }
 
   getUser() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch (e) { return null; }
   }
 
   setUser(user) {
@@ -34,27 +40,32 @@ class ApiService {
     localStorage.removeItem('user');
   }
 
-  // ==================== REQUÊTE GÉNÉRIQUE ====================
+  // ==================== REQUÊTE GÉNÉRIQUE (CORRIGÉE) ====================
   
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
+    // Nettoyage pour éviter les doubles slashes //
+    const cleanBase = this.baseURL.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.replace(/^\//, '');
+    const url = `${cleanBase}/${cleanEndpoint}`;
+
     const token = this.getToken();
     const isFormData = options.body instanceof FormData;
 
     const config = {
       ...options,
       headers: {
-        // ⚠️ IMPORTANT : Ne pas définir Content-Type pour FormData
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers      }
+        ...options.headers
+      }
     };
 
     try {
       const response = await fetch(url, config);
-      const contentType = response.headers.get('content-type');
       
+      const contentType = response.headers.get('content-type');
       let data;
+      
       if (contentType?.includes('application/json')) {
         data = await response.json();
       } else {
@@ -63,22 +74,15 @@ class ApiService {
       }
 
       if (!response.ok) {
-        const error = new Error(data.message || data.error || `Erreur HTTP ${response.status}`);
+        const error = new Error(data.message || data.error || `Erreur ${response.status}`);
         error.status = response.status;
-        error.data = data;
         throw error;
       }
-
-      // Gestion 204 No Content
-      if (response.status === 204) return null;
       
+      if (response.status === 204) return null;
       return data;
     } catch (error) {
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        console.error('❌ Erreur de connexion : le serveur est-il démarré ?');
-        throw new Error('Impossible de se connecter au serveur.');
-      }
-      console.error('❌ API Error:', error);
+      console.error(`❌ API Error sur ${url}:`, error.message);
       throw error;
     }
   }
@@ -96,57 +100,46 @@ class ApiService {
     }
     return data;
   }
+
   async logout() {
     await this.request('/api/auth/logout', { method: 'POST' }).catch(() => {});
     this.clearAuth();
   }
 
   async register(userData) {
-    return this.request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData)
-    });
+    return this.request('/api/auth/register', { method: 'POST', body: JSON.stringify(userData) });
   }
+
+  async getCurrentUser() { return this.request('/api/auth/me'); }
 
   // ==================== PRODUITS ====================
   
-  async getProducts() {
-    return this.request('/api/products');
-  }
+  async getProducts() { return this.request('/api/products'); }
+  async getProductById(id) { return this.request(`/api/products/${id}`); }
 
-  async getProductById(id) {
-    return this.request(`/api/products/${id}`);
-  }
-
-  // 🔹 CRITIQUE : Supporte FormData (image) ET JSON (texte seul)
   async addProduct(productData) {
-    const isFormData = productData instanceof FormData;
     return this.request('/api/products', {
       method: 'POST',
-      body: isFormData ? productData : JSON.stringify(productData)
+      body: productData instanceof FormData ? productData : JSON.stringify(productData)
     });
   }
 
   async updateProduct(id, productData) {
-    const isFormData = productData instanceof FormData;
     return this.request(`/api/products/${id}`, {
       method: 'PUT',
-      body: isFormData ? productData : JSON.stringify(productData)
+      body: productData instanceof FormData ? productData : JSON.stringify(productData)
     });
   }
 
-  async deleteProduct(id) {
-    return this.request(`/api/products/${id}`, { method: 'DELETE' });
-  }
-
-  // 🔹 Shortcut pour publier/dépublier
+  async deleteProduct(id) { return this.request(`/api/products/${id}`, { method: 'DELETE' }); }
+  
   async toggleProductPublish(id, published) {
     return this.request(`/api/products/${id}/publish`, {
       method: 'PATCH',
       body: JSON.stringify({ published })
     });
   }
-  // 🔹 Recherche produits
+
   async searchProducts(query, filters = {}) {
     const params = new URLSearchParams({ q: query, ...filters });
     return this.request(`/api/products/search?${params}`);
@@ -154,27 +147,14 @@ class ApiService {
 
   // ==================== CATÉGORIES ====================
   
-  async getCategories() {
-    return this.request('/api/categories');
-  }
-
+  async getCategories() { return this.request('/api/categories'); }
   async addCategory(categoryData) {
-    return this.request('/api/categories', {
-      method: 'POST',
-      body: JSON.stringify(categoryData)
-    });
+    return this.request('/api/categories', { method: 'POST', body: JSON.stringify(categoryData) });
   }
-
   async updateCategory(id, categoryData) {
-    return this.request(`/api/categories/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(categoryData)
-    });
+    return this.request(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify(categoryData) });
   }
-
-  async deleteCategory(id) {
-    return this.request(`/api/categories/${id}`, { method: 'DELETE' });
-  }
+  async deleteCategory(id) { return this.request(`/api/categories/${id}`, { method: 'DELETE' }); }
 
   // ==================== COMMANDES ====================
   
@@ -182,150 +162,47 @@ class ApiService {
     const params = new URLSearchParams(filters);
     return this.request(`/api/orders?${params}`);
   }
-
-  async getOrderById(id) {
-    return this.request(`/api/orders/${id}`);
-  }
-
   async createOrder(orderData) {
-    return this.request('/api/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData)
-    });
+    return this.request('/api/orders', { method: 'POST', body: JSON.stringify(orderData) });
   }
+  async getMyOrders() { return this.request('/api/orders/my'); }
 
-  async updateOrderStatus(id, status) {    return this.request(`/api/orders/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status })
-    });
-  }
-
-  async cancelOrder(id, reason) {
-    return this.request(`/api/orders/${id}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ reason })
-    });
-  }
-
-  async getMyOrders() {
-    return this.request('/api/orders/my');
-  }
-
-  // ==================== UTILISATEURS (Admin) ====================
+  // ==================== UTILISATEURS (ADMIN) ====================
   
   async getUsers(filters = {}) {
     const params = new URLSearchParams(filters);
     return this.request(`/api/users?${params}`);
   }
-
-  async createUser(userData) {
-    return this.request('/api/users', {
-      method: 'POST',
-      body: JSON.stringify(userData)
-    });
-  }
-
-  async updateUser(id, userData) {
-    return this.request(`/api/users/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(userData)
-    });
-  }
-
-  async deleteUser(id) {
-    return this.request(`/api/users/${id}`, { method: 'DELETE' });
-  }
-
   async updateUserRole(id, role) {
-    return this.request(`/api/users/${id}/role`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role })
-    });
+    return this.request(`/api/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) });
   }
 
-  // ==================== DÉPENSES & TAXES ====================  
+  // ==================== DÉPENSES & TAXES ====================
+  
   async getExpenses(filters = {}) {
     const params = new URLSearchParams(filters);
     return this.request(`/api/expenses?${params}`);
   }
-
   async addExpense(expenseData) {
-    return this.request('/api/expenses', {
-      method: 'POST',
-      body: JSON.stringify(expenseData)
-    });
+    return this.request('/api/expenses', { method: 'POST', body: JSON.stringify(expenseData) });
   }
-
-  async updateExpense(id, expenseData) {
-    return this.request(`/api/expenses/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(expenseData)
-    });
-  }
-
-  async deleteExpense(id) {
-    return this.request(`/api/expenses/${id}`, { method: 'DELETE' });
-  }
-
-  async getTaxes() {
-    return this.request('/api/taxes');
-  }
-
-  async addTax(taxData) {
-    return this.request('/api/taxes', {
-      method: 'POST',
-      body: JSON.stringify(taxData)
-    });
-  }
-
-  async updateTax(id, taxData) {
-    return this.request(`/api/taxes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(taxData)
-    });
-  }
-
-  async deleteTax(id) {
-    return this.request(`/api/taxes/${id}`, { method: 'DELETE' });
-  }
+  async getTaxes() { return this.request('/api/taxes'); }
 
   // ==================== RAPPORTS & STATS ====================
   
-  async getDashboardStats() {
-    return this.request('/api/stats/dashboard');  }
-
-  async getSalesReport(startDate, endDate) {
-    return this.request('/api/reports/sales', {
-      method: 'POST',
-      body: JSON.stringify({ startDate, endDate })
-    });
-  }
+  async getDashboardStats() { return this.request('/api/stats/dashboard'); }
+  async getInventoryReport() { return this.request('/api/reports/inventory'); }
 
   // ==================== PAIEMENTS PI & MOBILE MONEY ====================
   
   async approvePiPayment(paymentId) {
-    return this.request('/api/pi/approve', {
-      method: 'POST',
-      body: JSON.stringify({ paymentId })
-    });
+    return this.request('/api/pi/approve', { method: 'POST', body: JSON.stringify({ paymentId }) });
   }
-
   async completePiOrder(orderData) {
-    return this.request('/api/orders/pi', {
-      method: 'POST',
-      body: JSON.stringify(orderData)
-    });
+    return this.request('/api/orders/pi', { method: 'POST', body: JSON.stringify(orderData) });
   }
-
   async initiateMobileMoney(paymentData) {
-    return this.request('/api/mobile-money/initiate', {
-      method: 'POST',
-      body: JSON.stringify(paymentData)
-    });
-  }
-
-  async verifyMobileMoney(transactionId) {
-    return this.request(`/api/mobile-money/verify/${transactionId}`);
+    return this.request('/api/mobile-money/initiate', { method: 'POST', body: JSON.stringify(paymentData) });
   }
 
   // ==================== UTILITAIRES ====================
@@ -334,20 +211,10 @@ class ApiService {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('folder', folder);
-    return this.request('/api/upload/image', {
-      method: 'POST',
-      body: formData
-    });
+    return this.request('/api/upload/image', { method: 'POST', body: formData });
   }
-
-  async backupDatabase() {
-    return this.request('/api/backup', { method: 'POST' });  }
-
-  async healthCheck() {
-    return this.request('/api/health', { cache: 'no-store' });
-  }
+  async healthCheck() { return this.request('/api/health', { cache: 'no-store' }); }
 }
 
-// 🎯 Export singleton
 export const apiService = new ApiService();
 export default apiService;
