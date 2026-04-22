@@ -827,20 +827,25 @@ async function startServer() {
         // 1. On attend d'abord que SQLite soit prêt
         await initDb(); 
 
-        // 2. Configuration du Frontend (Dist)
-        const distPath = path.join(__dirname, '../dist');
-        if (fs.existsSync(distPath)) {
-            app.use(express.static(distPath));
-            
-            app.get('*', (req, res) => {
-                // Si la route commence par /api mais n'existe pas, on renvoie 404
-                if (req.url.startsWith('/api')) {
-                    return res.status(404).json({ error: 'Route API non trouvée' });
-                }
-                // Sinon, on sert l'application React
-                res.sendFile(path.join(distPath, 'index.html'));
-            });
-        }
+       // 2. Configuration du Frontend
+// On essaie de trouver le dossier dist là où il est vraiment
+const distPath = fs.existsSync(path.join(__dirname, 'dist')) 
+  ? path.join(__dirname, 'dist') 
+  : path.join(__dirname, '../dist');
+
+console.log('📂 Serveur : Dossier Frontend trouvé ici ->', distPath);
+
+app.use(express.static(distPath));
+
+app.get('*', (req, res) => {
+  // Si c'est une route API qui n'existe pas
+  if (req.url.startsWith('/api')) {
+    return res.status(404).json({ error: 'Route API non trouvée' });
+  }
+  // Sinon, on envoie toujours l'index.html de React
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
 
         // 3. Lancement du serveur sur 0.0.0.0
         app.listen(PORT, '0.0.0.0', () => {
