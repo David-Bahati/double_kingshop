@@ -145,5 +145,4 @@ class PiService {
   }
 }
 
-// 🎯 Exporter une instance singletonexport const piService = new PiService();
-export default piService;
+export const piService = new PiService();
