@@ -143,7 +143,7 @@
       gtag('config', 'G-XXXXXXXXXX', { anonymize_ip: true });
     </script> -->
     
-    <!-- 🔔 Service Worker Registration (PWA) -->
+    <!-- 🔔 Service Worker Registration (PWA) 
     <script>
       if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
         window.addEventListener('load', () => {          navigator.serviceWorker.register('/sw.js')
@@ -151,7 +151,7 @@
             .catch(err => console.log('SW échec:', err));
         });
       }
-    </script>
+    </script>  -->
     
     <!-- 🛡️ Security: Prevent XSS via meta (complémentaire aux headers HTTP) -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.minepi.com https://api.fedapay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.minepi.com https://api.fedapay.com https://doublekingshop.cd;" />
