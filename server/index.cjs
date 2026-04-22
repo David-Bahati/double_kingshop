@@ -820,7 +820,7 @@ app.post('/api/backup', requireAuth, requireAdmin, async (req, res) => {
 
 // ==================== SERVING FRONTEND (Production) ====================
 
-c// ==================== DÉMARRAGE SÉCURISÉ DKS ====================
+// ==================== DÉMARRAGE SÉCURISÉ DKS ====================
 
 async function startServer() {
     try {
