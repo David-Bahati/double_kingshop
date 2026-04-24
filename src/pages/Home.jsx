@@ -181,7 +181,7 @@ const Home = () => {
             Bunia • Ituri • RDC
           </span>
           <h2 className="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-8 tracking-tighter uppercase italic">
-            Qualité informatique <br/> 
+            Qualité informatiques <br/> 
             <span className="text-blue-500">au meilleur prix.</span>
           </h2>
           <a href="#products" className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-50 shadow-xl inline-block transition-transform active:scale-95">
